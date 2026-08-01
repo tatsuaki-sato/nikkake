@@ -46,3 +46,6 @@ nikkake_kmp/**/xcuserdata/
 *.p12
 *.keystore
 *.mobileprovision
+
+# ---- 契約パッケージ ----
+packages/*/node_modules/

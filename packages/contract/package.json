@@ -1,0 +1,15 @@
+{
+  "name": "@nikkake/contract",
+  "version": "0.1.0",
+  "private": true,
+  "description": "5実装（Rails / Web / React Native / Flutter / KMP）が共有する唯一の契約",
+  "type": "module",
+  "scripts": {
+    "verify": "node scripts/verify-presets.mjs && node scripts/verify-schema.mjs",
+    "verify:presets": "node scripts/verify-presets.mjs",
+    "verify:schema": "node scripts/verify-schema.mjs"
+  },
+  "devDependencies": {
+    "graphql": "^16.9.0"
+  }
+}

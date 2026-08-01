@@ -1,0 +1,603 @@
+# =====================================================================
+# nikkake GraphQL スキーマ — 4クライアント共通の契約
+# =====================================================================
+#
+# 実装より先にここを確定させる。Rails 実装後は
+#   bundle exec rake graphql:dump
+# が生成する内容とこのファイルが一致することを CI で検査する。
+#
+# 設計方針:
+#   1. 「画面 = クエリ1本」。集計済みのビュー型を返す。
+#      汎用的な routines { logs { ... } } を返すと、結局4実装に集計ロジックが戻る。
+#   2. 「今日」はサーバが計算しない。クライアントが today と timeZone を必ず送る。
+#      サーバが Date.today を使うと、日本の朝8時が UTC では前日23時なので1日ずれる。
+#   3. ID はクライアントが生成する。これが冪等性の土台で、
+#      オフラインで作ったレコードを再送しても二重登録されない。
+#   4. 入力エラーは payload の userErrors に入れる。GraphQL の errors は
+#      認証切れとサーバエラーだけに使う。文言は docs/FEATURES.md が仕様として定めている。
+
+"YYYY-MM-DD。端末のローカル日付。サーバは UTC から導出しない"
+scalar Date
+
+"ISO8601 (UTC)"
+scalar DateTime
+
+# =====================================================================
+# Query
+# =====================================================================
+
+type Query {
+  """
+  ホーム画面ぶんを一括で返す。
+  due / notScheduled / completed の区分もサーバが決める。
+  """
+  home(today: Date!, timeZone: String!): HomeView!
+
+  routines(includeInactive: Boolean = true): [Routine!]!
+  routine(id: ID!): Routine
+
+  "種目マスタ（プリセット＋自分のカスタム）"
+  exercises: [Exercise!]!
+
+  """
+  ワークアウト実行に必要なもの一式。
+  前回の実績もサーバが解決して previousSets に入れる。
+  """
+  workoutSession(routineId: ID!): WorkoutSession!
+
+  progress(today: Date!, timeZone: String!, rangeDays: Int! = 7): ProgressView!
+
+  "種目ごとの推移。進捗画面で種目を切り替えたときに使う"
+  exerciseProgress(exerciseId: ID!, limit: Int! = 8): [ExerciseProgressPoint!]!
+
+  viewer: Viewer!
+
+  """
+  クライアントの読み取りキャッシュを温めるための差分。
+  オフライン閲覧の土台。since を省略すると全件。
+  """
+  changes(since: DateTime): ChangeSet!
+}
+
+# =====================================================================
+# ビュー型（集計済み）
+# =====================================================================
+
+type HomeView {
+  today: Date!
+  streak: Streak!
+
+  "今日やる分。タップで即開始"
+  due: [TodayRoutine!]!
+
+  "今日は予定なし。薄く表示するがタップで開始できる"
+  notScheduled: [TodayRoutine!]!
+
+  "今日はもう終わった分"
+  completed: [TodayRoutine!]!
+}
+
+type TodayRoutine {
+  routine: Routine!
+  isDueToday: Boolean!
+
+  "全セット完了でなくても、記録を残していれば true（skipped のみは false）"
+  isCompleted: Boolean!
+
+  lastLog: RoutineLog
+
+  "「毎日」「3日ごと」「月・水」など。文言をサーバに寄せて4実装のズレを消す"
+  frequencyLabel: String!
+}
+
+type Streak {
+  "現在の連続日数。最終実施日が今日か昨日なら継続中"
+  current: Int!
+  longest: Int!
+  lastCompletedDate: Date
+}
+
+type WorkoutSession {
+  routine: Routine!
+  exercises: [WorkoutSessionExercise!]!
+}
+
+type WorkoutSessionExercise {
+  routineExerciseId: ID!
+  exercise: Exercise!
+  targetSets: Int!
+  targetReps: Int
+  targetWeight: Float
+  "非 null なら時間計測の種目（プランクなど）。UI は「回」ではなく「秒」を出す"
+  targetDurationSec: Int
+  restSec: Int!
+
+  "前回のワークアウトの実績。各セットの初期値になる"
+  previousSets: [RecordedSet!]!
+
+  "「50.0×10 / 50.0×10」の整形済み文字列。無ければ null"
+  previousLabel: String
+}
+
+type ProgressView {
+  overall: OverallStats!
+  streak: Streak!
+  dailyStats: [DailyStat!]!
+
+  "カレンダーで塗る日"
+  completedDates: [Date!]!
+
+  "記録がある種目だけ。セレクタの選択肢"
+  exercisesWithLogs: [Exercise!]!
+}
+
+type OverallStats {
+  totalWorkouts: Int!
+  "今日を含む直近7日"
+  thisWeekCount: Int!
+  totalDurationSec: Int!
+  totalSets: Int!
+}
+
+type DailyStat {
+  date: Date!
+  "skipped 以外の件数"
+  completedCount: Int!
+  totalCount: Int!
+}
+
+type ExerciseProgressPoint {
+  date: Date!
+  maxWeight: Float!
+  totalReps: Int!
+  "kg × 回 の合計。自重種目は 0"
+  totalVolume: Float!
+}
+
+type Viewer {
+  id: ID!
+  "匿名のうちは null"
+  email: String
+  isAnonymous: Boolean!
+  emailVerified: Boolean!
+  storageMode: StorageMode!
+  "設定画面の件数表示"
+  counts: DataCounts!
+  "未送信の変更がある場合の件数。クライアントのキューとは別にサーバ側の視点"
+  lastSyncedAt: DateTime
+}
+
+enum StorageMode {
+  "サーバ未登録。遅延登録が完了するまでの一時状態"
+  LOCAL_ONLY
+  CLOUD
+}
+
+type DataCounts {
+  routines: Int!
+  exercises: Int!
+  routineLogs: Int!
+  exerciseLogs: Int!
+}
+
+type ChangeSet {
+  cursor: DateTime!
+  exercises: [Exercise!]!
+  routines: [Routine!]!
+  routineExercises: [RoutineExercise!]!
+  routineLogs: [RoutineLog!]!
+  exerciseLogs: [ExerciseLog!]!
+}
+
+# =====================================================================
+# エンティティ
+# =====================================================================
+
+type Exercise {
+  id: ID!
+  name: String!
+  category: ExerciseCategory!
+  description: String
+  icon: String
+  isPreset: Boolean!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+enum ExerciseCategory {
+  STRENGTH
+  CARDIO
+  GAME
+  CUSTOM
+}
+
+type Routine {
+  id: ID!
+  name: String!
+  description: String
+  color: String!
+  icon: String!
+  frequencyType: FrequencyType!
+  frequencyValue: Int!
+  "日=0 .. 土=6"
+  frequencyDays: [Int!]!
+  isActive: Boolean!
+  sortOrder: Int!
+  "楽観ロック用。updateRoutine に必ず渡す"
+  lockVersion: Int!
+  routineExercises: [RoutineExercise!]!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+enum FrequencyType {
+  DAILY
+  EVERY_N_DAYS
+  WEEKLY
+}
+
+type RoutineExercise {
+  id: ID!
+  routineId: ID!
+  exercise: Exercise!
+  sortOrder: Int!
+  targetSets: Int!
+  targetReps: Int
+  targetWeight: Float
+  targetDurationSec: Int
+  restSec: Int
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+type RoutineLog {
+  id: ID!
+  routineId: ID!
+  logDate: Date!
+  status: LogStatus!
+  durationSec: Int
+  startedAt: DateTime
+  completedAt: DateTime
+  exerciseLogs: [ExerciseLog!]!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+enum LogStatus {
+  COMPLETED
+  PARTIAL
+  SKIPPED
+}
+
+type ExerciseLog {
+  id: ID!
+  routineLogId: ID!
+  "routine_exercises は編集で作り直されるため、履歴はこちらで辿る"
+  exerciseId: ID!
+  setNumber: Int!
+  actualReps: Int
+  actualWeight: Float
+  actualDurationSec: Int
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+type RecordedSet {
+  setNumber: Int!
+  reps: Int
+  weight: Float
+  durationSec: Int
+}
+
+# =====================================================================
+# Mutation
+# =====================================================================
+
+type Mutation {
+  # ---- 認証（すべて任意機能） ----
+
+  """
+  匿名アカウントを発行する。認証不要な唯一の入口。
+  端末IDからは導出しない 256bit のランダムトークンを返す。
+  """
+  createAnonymousAccount(input: CreateAnonymousAccountInput!): AuthPayload!
+
+  "匿名アカウントにメール／パスワードを付ける。user.id は変わらないのでデータ移行は発生しない"
+  attachEmailPassword(input: AttachEmailPasswordInput!): AuthPayload!
+
+  "既存アカウントにサインインする。この端末の匿名データを統合するか選べる"
+  linkExistingAccount(input: LinkExistingAccountInput!): AuthPayload!
+
+  "サインアウトしてもサーバのデータは消さない"
+  signOut: GenericPayload!
+
+  resendVerificationEmail: GenericPayload!
+
+  # ---- ルーティン（オンライン必須） ----
+
+  createRoutine(input: CreateRoutineInput!): RoutinePayload!
+  updateRoutine(input: UpdateRoutineInput!): RoutinePayload!
+  deleteRoutine(input: IdInput!): RoutinePayload!
+  setRoutineActive(input: SetRoutineActiveInput!): RoutinePayload!
+  createCustomExercise(input: CreateCustomExerciseInput!): ExercisePayload!
+
+  # ---- 記録（オフラインキューの対象） ----
+
+  """
+  ワークアウト1回分を記録する。
+  id はクライアント生成なので、再送しても二重登録されない。
+  status は送らせない。完了セット数と totalSets からサーバが判定する。
+  """
+  recordWorkout(input: RecordWorkoutInput!): RecordWorkoutPayload!
+
+  deleteRoutineLog(input: IdInput!): GenericPayload!
+
+  # ---- データ管理 ----
+
+  "遅延登録の本体。端末ローカルのデータをまるごとサーバへ取り込む"
+  importSnapshot(input: ImportSnapshotInput!): ImportSnapshotPayload!
+
+  resetData: GenericPayload!
+}
+
+# ---- 入力 ----
+
+input CreateAnonymousAccountInput {
+  timeZone: String!
+  deviceLabel: String
+  clientMutationId: String
+}
+
+input AttachEmailPasswordInput {
+  email: String!
+  password: String!
+  displayName: String
+  clientMutationId: String
+}
+
+input LinkExistingAccountInput {
+  email: String!
+  password: String!
+  "この端末の匿名データを統合するか。false なら破棄する"
+  mergeAnonymousData: Boolean!
+  clientMutationId: String
+}
+
+input CreateRoutineInput {
+  "クライアント生成 UUID"
+  id: ID!
+  name: String!
+  description: String
+  icon: String!
+  color: String!
+  frequencyType: FrequencyType!
+  frequencyValue: Int! = 1
+  frequencyDays: [Int!]! = []
+  exercises: [RoutineExerciseInput!]!
+  clientMutationId: String
+}
+
+input UpdateRoutineInput {
+  id: ID!
+  name: String!
+  description: String
+  icon: String!
+  color: String!
+  frequencyType: FrequencyType!
+  frequencyValue: Int! = 1
+  frequencyDays: [Int!]! = []
+  isActive: Boolean! = true
+  exercises: [RoutineExerciseInput!]!
+  "他端末で更新されていたら CONFLICT を返す"
+  lockVersion: Int!
+  clientMutationId: String
+}
+
+input RoutineExerciseInput {
+  id: ID!
+  exerciseId: ID!
+  targetSets: Int!
+  targetReps: Int
+  targetWeight: Float
+  targetDurationSec: Int
+  restSec: Int
+}
+
+input SetRoutineActiveInput {
+  id: ID!
+  isActive: Boolean!
+  clientMutationId: String
+}
+
+input CreateCustomExerciseInput {
+  id: ID!
+  name: String!
+  category: ExerciseCategory!
+  icon: String
+  clientMutationId: String
+}
+
+input RecordWorkoutInput {
+  "クライアント生成 UUID。再送時の冪等キーを兼ねる"
+  id: ID!
+  routineId: ID!
+
+  "端末TZで決めた日付。サーバは UTC から導出しない"
+  logDate: Date!
+  "記録時のタイムゾーン。事故時に検証・救済するため保存する"
+  timeZone: String!
+
+  startedAt: DateTime!
+  durationSec: Int
+
+  "そのワークアウトの目標セット総数。status 判定に使う（実行中に増減できるため）"
+  totalSets: Int!
+  sets: [RecordedSetInput!]!
+
+  clientMutationId: String
+}
+
+input RecordedSetInput {
+  id: ID!
+  routineExerciseId: ID
+  exerciseId: ID!
+  setNumber: Int!
+  actualReps: Int
+  actualWeight: Float
+  actualDurationSec: Int
+}
+
+input ImportSnapshotInput {
+  exercises: [ImportExerciseInput!]!
+  routines: [ImportRoutineInput!]!
+  routineExercises: [ImportRoutineExerciseInput!]!
+  routineLogs: [ImportRoutineLogInput!]!
+  exerciseLogs: [ImportExerciseLogInput!]!
+  clientMutationId: String
+}
+
+input ImportExerciseInput {
+  id: ID!
+  name: String!
+  category: ExerciseCategory!
+  description: String
+  icon: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+input ImportRoutineInput {
+  id: ID!
+  name: String!
+  description: String
+  color: String!
+  icon: String!
+  frequencyType: FrequencyType!
+  frequencyValue: Int!
+  frequencyDays: [Int!]!
+  isActive: Boolean!
+  sortOrder: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+input ImportRoutineExerciseInput {
+  id: ID!
+  routineId: ID!
+  exerciseId: ID!
+  sortOrder: Int!
+  targetSets: Int!
+  targetReps: Int
+  targetWeight: Float
+  targetDurationSec: Int
+  restSec: Int
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+input ImportRoutineLogInput {
+  id: ID!
+  routineId: ID!
+  logDate: Date!
+  status: LogStatus!
+  durationSec: Int
+  startedAt: DateTime
+  completedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+input ImportExerciseLogInput {
+  id: ID!
+  routineLogId: ID!
+  routineExerciseId: ID
+  exerciseId: ID!
+  setNumber: Int!
+  actualReps: Int
+  actualWeight: Float
+  actualDurationSec: Int
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  deletedAt: DateTime
+}
+
+input IdInput {
+  id: ID!
+  clientMutationId: String
+}
+
+# ---- 出力 ----
+
+type AuthPayload {
+  """
+  Bearer トークン。Web では httpOnly Cookie に載せるのでここは null になる
+  （localStorage に置くと XSS で抜かれるため）。
+  """
+  token: String
+  viewer: Viewer
+  userErrors: [UserError!]!
+}
+
+type RoutinePayload {
+  routine: Routine
+  userErrors: [UserError!]!
+}
+
+type ExercisePayload {
+  exercise: Exercise
+  userErrors: [UserError!]!
+}
+
+type RecordWorkoutPayload {
+  routineLog: RoutineLog
+  "サマリー画面が要るもの。ここでも再計算はさせない"
+  summary: WorkoutSummary
+  "更新後の連続記録。サマリー画面の表示に使う"
+  streak: Streak
+  userErrors: [UserError!]!
+}
+
+type WorkoutSummary {
+  routineLogId: ID!
+  routineName: String!
+  durationSec: Int!
+  completedSets: Int!
+  totalSets: Int!
+  totalVolume: Float!
+  status: LogStatus!
+}
+
+type ImportSnapshotPayload {
+  imported: DataCounts
+  viewer: Viewer
+  userErrors: [UserError!]!
+}
+
+type GenericPayload {
+  success: Boolean!
+  userErrors: [UserError!]!
+}
+
+"""
+入力起因のエラー。docs/FEATURES.md がバリデーション文言を仕様として定めているので、
+message はそのまま画面に出せる日本語にする。
+"""
+type UserError {
+  path: [String!]
+  message: String!
+  code: UserErrorCode!
+}
+
+enum UserErrorCode {
+  VALIDATION
+  NOT_FOUND
+  "他端末で更新されていた（楽観ロック）"
+  CONFLICT
+  ALREADY_PROMOTED
+  INVALID_CREDENTIALS
+  RATE_LIMITED
+}
