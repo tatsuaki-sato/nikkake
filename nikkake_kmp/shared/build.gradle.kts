@@ -35,18 +35,18 @@ kotlin {
                 implementation("io.ktor:ktor-client-core:2.3.7")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
-                
-                implementation("cafe.adriel.voyager:voyager-navigator:1.0.0")
-                implementation("cafe.adriel.voyager:voyager-tab-navigator:1.0.0")
-                implementation("cafe.adriel.voyager:voyager-transitions:1.0.0")
+                // 日付計算をプラットフォーム間で揃えるために使う。
+                // ストリークや「今日やる予定か」の判定はタイムゾーン依存なので自前実装は避ける。
+                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
+
+                // 画面遷移はComposeの状態だけで足りる規模なので、
+                // ナビゲーションライブラリは入れていない（ui/AppNavigator.kt を参照）
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-                @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
-                implementation(compose.uiTest)
             }
         }
         val androidMain by getting {

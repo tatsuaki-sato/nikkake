@@ -1,85 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'constants/colors.dart';
-import 'services/services.dart';
-import 'providers/providers.dart';
-import 'screens/login_screen.dart';
-import 'screens/register_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/routine_create_screen.dart';
-import 'screens/workout_screen.dart';
-import 'screens/progress_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app.dart';
+import 'data/local_db.dart';
+import 'data/local_store.dart';
+import 'data/sync_service.dart';
+import 'providers/auth_controller.dart';
 
-void main() {
-  runApp(
-    MultiProvider(
-      providers: [
-        Provider<ApiService>(create: (_) => SupabaseService()),
-        ChangeNotifierProxyProvider<ApiService, AuthProvider>(
-          create: (context) => AuthProvider(context.read<ApiService>()),
-          update: (_, api, auth) => auth ?? AuthProvider(api),
-        ),
-        ChangeNotifierProxyProvider<ApiService, RoutineProvider>(
-          create: (context) => RoutineProvider(context.read<ApiService>()),
-          update: (_, api, provider) => provider ?? RoutineProvider(api),
-        ),
-      ],
-      child: const NikkakeApp(),
-    ),
-  );
-}
+/// Supabaseはバックアップ先としてのみ使う。
+/// anonキーはクライアントに埋め込む前提の公開値で、行単位のアクセス制御はRLSが担う。
+const supabaseUrl = 'https://igptzltkydyghneioedm.supabase.co';
+/// supabase_flutter 2.16 以降は publishableKey が正式名称。値は同じ anon キー
+const supabasePublishableKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlncHR6bHRreWR5Z2huZWlvZWRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MDMyNjEsImV4cCI6MjA5OTI3OTI2MX0.pNprCQcr4GkAY86VhF9JUHYtpGxavQxDJjpodea1dAE';
 
-class NikkakeApp extends StatelessWidget {
-  const NikkakeApp({Key? key}) : super(key: key);
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Nikkake',
-      theme: getAppTheme(false),
-      darkTheme: getAppTheme(true),
-      home: Consumer<AuthProvider>(
-        builder: (context, auth, _) {
-          if (auth.user == null) {
-            return const LoginScreen();
-          }
-          return const MainScreen();
-        },
-      ),
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/routine/create': (context) => const RoutineCreateScreen(),
-        '/workout': (context) => const WorkoutScreen(),
-        '/progress': (context) => const ProgressScreen(),
-      },
-    );
+  final store = await LocalStore.open();
+  final db = LocalDb(store);
+
+  // Supabaseの初期化に失敗しても、ローカルモードでアプリは完全に動く。
+  // ここで例外を投げて起動を止めるのは「ログイン不要で使える」という要件に反する。
+  AuthController? authController;
+  try {
+    await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
+    final client = Supabase.instance.client;
+    authController = AuthController(syncService: SyncService(db, client), auth: client.auth);
+  } catch (_) {
+    authController = null;
   }
-}
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({Key? key}) : super(key: key);
-
-  @override
-  State<MainScreen> createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
-  final _screens = [const HomeScreen(), const ProgressScreen()];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'ルーティン'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: '進捗状況'),
-        ],
-      ),
-    );
-  }
+  runApp(NikkakeApp(db: db, authController: authController));
 }

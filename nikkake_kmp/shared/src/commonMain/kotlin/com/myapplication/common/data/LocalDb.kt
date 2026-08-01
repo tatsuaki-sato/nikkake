@@ -1,0 +1,257 @@
+package com.myapplication.common.data
+
+import com.myapplication.common.domain.nowIso
+import kotlinx.datetime.Instant
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlin.random.Random
+
+/**
+ * ローカルの「テーブル」名。Supabase側のテーブル名と1:1で対応させてあるので、
+ * 同期処理は名前をそのまま使ってpush/pullできる。
+ */
+object Collections {
+    const val EXERCISES = "exercises"
+    const val ROUTINES = "routines"
+    const val ROUTINE_EXERCISES = "routine_exercises"
+    const val ROUTINE_LOGS = "routine_logs"
+    const val EXERCISE_LOGS = "exercise_logs"
+
+    /** 親→子の順。外部キー制約を壊さないためにこの順でpushする */
+    val all = listOf(EXERCISES, ROUTINES, ROUTINE_EXERCISES, ROUTINE_LOGS, EXERCISE_LOGS)
+}
+
+@Serializable
+data class LocalMeta(
+    val schemaVersion: Int = LocalDb.CURRENT_SCHEMA_VERSION,
+    val seeded: Boolean = false,
+    /** 最後にSupabaseと同期できた時刻。pullの差分取得カーソルも兼ねる */
+    val lastSyncedAt: String? = null,
+    /** 同期先アカウント。別アカウントでサインインしたらカーソルを捨てる */
+    val syncUserId: String? = null,
+)
+
+data class UpsertResult(val inserted: Int, val updated: Int, val skipped: Int)
+
+/** クライアント生成のIDはSupabaseのuuid列に入るので、RFC 4122 v4 準拠にする */
+object Uuid {
+    private const val HEX = "0123456789abcdef"
+
+    fun v4(random: Random = Random.Default): String {
+        val bytes = ByteArray(16) { random.nextInt(256).toByte() }
+        bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x40).toByte()
+        bytes[8] = ((bytes[8].toInt() and 0x3f) or 0x80).toByte()
+
+        val hex = bytes.joinToString("") { b ->
+            val v = b.toInt() and 0xff
+            "${HEX[v shr 4]}${HEX[v and 0x0f]}"
+        }
+
+        return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-" +
+            "${hex.substring(16, 20)}-${hex.substring(20, 32)}"
+    }
+}
+
+/**
+ * 端末ローカルのJSONコレクション置き場。
+ *
+ * 画面描画のたびにデコードすると重いので、読み込んだコレクションは
+ * メモリにキャッシュし、書き込み時に両方を更新する。
+ */
+class LocalDb(private val storage: StorageAdapter) {
+
+    companion object {
+        const val CURRENT_SCHEMA_VERSION = 1
+        const val PREFIX = "nikkake:v1:"
+    }
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    private val cache = mutableMapOf<String, List<*>>()
+
+    private fun key(name: String) = "$PREFIX$name"
+
+    // ------------------------------------------
+    // メタ情報
+    // ------------------------------------------
+
+    fun getMeta(): LocalMeta {
+        val raw = storage.getString(key("meta")) ?: return LocalMeta()
+        return runCatching { json.decodeFromString(LocalMeta.serializer(), raw) }.getOrElse { LocalMeta() }
+    }
+
+    fun setMeta(
+        seeded: Boolean? = null,
+        lastSyncedAt: String? = null,
+        syncUserId: String? = null,
+    ): LocalMeta {
+        val current = getMeta()
+        val next = current.copy(
+            seeded = seeded ?: current.seeded,
+            lastSyncedAt = lastSyncedAt ?: current.lastSyncedAt,
+            syncUserId = syncUserId ?: current.syncUserId,
+        )
+        storage.putString(key("meta"), json.encodeToString(LocalMeta.serializer(), next))
+        return next
+    }
+
+    // ------------------------------------------
+    // コレクション操作
+    // ------------------------------------------
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T : SyncEntity<T>> readRaw(name: String, serializer: KSerializer<T>): List<T> {
+        cache[name]?.let { return it as List<T> }
+
+        val raw = storage.getString(key(name))
+        if (raw == null) {
+            cache[name] = emptyList<T>()
+            return emptyList()
+        }
+
+        // 壊れたJSONで起動不能になるのが最悪なので、握りつぶして空で復旧する
+        val rows = runCatching { json.decodeFromString(ListSerializer(serializer), raw) }
+            .getOrElse { emptyList() }
+
+        cache[name] = rows
+        return rows
+    }
+
+    fun <T : SyncEntity<T>> write(name: String, serializer: KSerializer<T>, rows: List<T>) {
+        cache[name] = rows
+        storage.putString(key(name), json.encodeToString(ListSerializer(serializer), rows))
+    }
+
+    /** 論理削除されていない行だけ */
+    fun <T : SyncEntity<T>> list(name: String, serializer: KSerializer<T>): List<T> =
+        readRaw(name, serializer).filter { it.deletedAt == null }
+
+    fun <T : SyncEntity<T>> find(name: String, serializer: KSerializer<T>, id: String): T? =
+        list(name, serializer).firstOrNull { it.id == id }
+
+    fun <T : SyncEntity<T>> insert(name: String, serializer: KSerializer<T>, row: T): T {
+        val stamped = row.touched(updatedAt = nowIso(), deletedAt = null)
+        write(name, serializer, readRaw(name, serializer) + stamped)
+        return stamped
+    }
+
+    fun <T : SyncEntity<T>> insertMany(name: String, serializer: KSerializer<T>, rows: List<T>): List<T> {
+        if (rows.isEmpty()) return emptyList()
+
+        val timestamp = nowIso()
+        val stamped = rows.map { it.touched(updatedAt = timestamp, deletedAt = null) }
+        write(name, serializer, readRaw(name, serializer) + stamped)
+        return stamped
+    }
+
+    /** 既存行を transform で書き換える。updated_at は自動で進める */
+    fun <T : SyncEntity<T>> update(
+        name: String,
+        serializer: KSerializer<T>,
+        id: String,
+        transform: (T) -> T,
+    ): T? {
+        val rows = readRaw(name, serializer)
+        val index = rows.indexOfFirst { it.id == id }
+        if (index < 0) return null
+
+        val updated = transform(rows[index]).touched(updatedAt = nowIso())
+        write(name, serializer, rows.toMutableList().also { it[index] = updated })
+        return updated
+    }
+
+    /**
+     * 論理削除。物理削除にすると「削除した」という事実が同期先に伝わらず、
+     * 他端末からpullし直すたびに復活してしまう。
+     */
+    fun <T : SyncEntity<T>> softDelete(name: String, serializer: KSerializer<T>, id: String): Boolean {
+        val rows = readRaw(name, serializer)
+        val index = rows.indexOfFirst { it.id == id }
+        if (index < 0) return false
+
+        val timestamp = nowIso()
+        val deleted = rows[index].touched(updatedAt = timestamp, deletedAt = timestamp)
+        write(name, serializer, rows.toMutableList().also { it[index] = deleted })
+        return true
+    }
+
+    fun <T : SyncEntity<T>> softDeleteWhere(
+        name: String,
+        serializer: KSerializer<T>,
+        predicate: (T) -> Boolean,
+    ): Int {
+        val rows = readRaw(name, serializer)
+        val timestamp = nowIso()
+        var count = 0
+
+        val next = rows.map { row ->
+            if (row.deletedAt != null || !predicate(row)) row
+            else {
+                count++
+                row.touched(updatedAt = timestamp, deletedAt = timestamp)
+            }
+        }
+
+        if (count > 0) write(name, serializer, next)
+        return count
+    }
+
+    /** pull結果の取り込み。updated_at が新しい方を採用する (last-write-wins) */
+    fun <T : SyncEntity<T>> upsertFromRemote(
+        name: String,
+        serializer: KSerializer<T>,
+        remoteRows: List<T>,
+    ): UpsertResult {
+        val byId = readRaw(name, serializer).associateBy { it.id }.toMutableMap()
+        var inserted = 0
+        var updated = 0
+        var skipped = 0
+
+        for (remote in remoteRows) {
+            val local = byId[remote.id]
+            when {
+                local == null -> {
+                    byId[remote.id] = remote
+                    inserted++
+                }
+                isAfter(remote.updatedAt, local.updatedAt) -> {
+                    byId[remote.id] = remote
+                    updated++
+                }
+                else -> skipped++
+            }
+        }
+
+        write(name, serializer, byId.values.toList())
+        return UpsertResult(inserted, updated, skipped)
+    }
+
+    /** 前回同期以降に変更された行（push対象） */
+    fun <T : SyncEntity<T>> changedSince(
+        name: String,
+        serializer: KSerializer<T>,
+        since: String?,
+    ): List<T> {
+        val rows = readRaw(name, serializer)
+        return if (since == null) rows else rows.filter { isAfter(it.updatedAt, since) }
+    }
+
+    /**
+     * ISO8601同士の前後比較。
+     *
+     * 文字列比較にしないのは、小数秒の有無で桁数が変わるため。
+     * "…:00.500Z" と "…:00Z" を辞書順で比べると '.' < 'Z' で前後が逆転する。
+     */
+    private fun isAfter(a: String, b: String): Boolean =
+        runCatching { Instant.parse(a) > Instant.parse(b) }.getOrElse { a > b }
+
+    fun reset() {
+        storage.keys().filter { it.startsWith(PREFIX) }.forEach(storage::remove)
+        cache.clear()
+    }
+}

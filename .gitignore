@@ -1,5 +1,48 @@
+# OS / エディタ
 .DS_Store
 .vscode/
 .idea/
 *.swp
 *.log
+
+# ---- React Native / Expo ----
+nikkake_react_native/node_modules/
+nikkake_react_native/.expo/
+nikkake_react_native/dist/
+nikkake_react_native/web-build/
+nikkake_react_native/expo-env.d.ts
+nikkake_react_native/.metro-health-check*
+# テストの出力（生成物なのでコミットしない）
+nikkake_react_native/playwright-report/
+nikkake_react_native/test-results/
+nikkake_react_native/coverage/
+# 生成されるネイティブプロジェクト
+nikkake_react_native/ios/
+nikkake_react_native/android/
+
+# ---- Flutter ----
+nikkake_flutter/build/
+nikkake_flutter/.dart_tool/
+nikkake_flutter/.flutter-plugins
+nikkake_flutter/.flutter-plugins-dependencies
+nikkake_flutter/.packages
+nikkake_flutter/**/Pods/
+nikkake_flutter/**/.symlinks/
+
+# ---- Kotlin Multiplatform ----
+nikkake_kmp/.gradle/
+nikkake_kmp/.kotlin/
+nikkake_kmp/build/
+nikkake_kmp/**/build/
+# 各自の環境のSDKパスなので共有しない
+nikkake_kmp/local.properties
+nikkake_kmp/**/xcuserdata/
+
+# ---- 秘匿情報 ----
+.env
+.env.*.local
+*.jks
+*.p8
+*.p12
+*.keystore
+*.mobileprovision

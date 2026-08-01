@@ -1,5 +1,5 @@
 import androidx.compose.ui.window.ComposeUIViewController
+import com.myapplication.common.App
 
-actual fun getPlatformName(): String = "iOS"
-
+/** iOS側のエントリ。SwiftからこのViewControllerを表示する */
 fun MainViewController() = ComposeUIViewController { App() }

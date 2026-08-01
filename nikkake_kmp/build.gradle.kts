@@ -1,11 +1,9 @@
 plugins {
-    // this is necessary to avoid the plugins to be loaded multiple times
-    // in each subproject's classloader
+    // 各サブプロジェクトのクラスローダで多重ロードされるのを避けるため、
+    // ルートでは apply(false) で宣言だけしておく
     kotlin("multiplatform").apply(false)
+    kotlin("plugin.serialization").version("1.9.21").apply(false)
     id("com.android.application").apply(false)
     id("com.android.library").apply(false)
     id("org.jetbrains.compose").apply(false)
-}
-plugins {
-    kotlin("plugin.serialization").version("1.9.21").apply(false)
 }

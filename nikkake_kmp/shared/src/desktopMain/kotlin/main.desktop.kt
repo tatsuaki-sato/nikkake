@@ -1,12 +1,5 @@
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.runtime.Composable
+import com.myapplication.common.App
 
-actual fun getPlatformName(): String = "Desktop"
-
-@Composable fun MainView() = App()
-
-@Preview
 @Composable
-fun AppPreview() {
-    App()
-}
+fun MainView() = App()
