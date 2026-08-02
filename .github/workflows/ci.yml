@@ -1,0 +1,277 @@
+name: CI
+
+# 契約チェックと全テスト。
+#
+# このリポジトリの安全装置は「4言語が同じ答えを返すこと」を機械的に検査する仕組みで、
+# それが人の記憶に頼っていると意味がありません。ここで毎回回します。
+#
+# 詳細は docs/CONTRACT.md と docs/TESTING.md を参照。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 言語をまたぐ約束ごと。ここが落ちたらどれかの実装が契約からずれている
+  contract:
+    name: 契約（プリセット種目・GraphQLスキーマ）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:contract
+
+  api:
+    name: Rails API
+    runs-on: ubuntu-latest
+
+    # 「今日」の判定はこのアプリで最も壊れやすい。
+    # ストリークが1日ずれるのが最悪の不具合なので、複数のTZで回す。
+    # Europe/London は DST 境界（3月末・10月末）を含むので外さないこと。
+    strategy:
+      fail-fast: false
+      matrix:
+        tz: [Asia/Tokyo, Pacific/Honolulu, Europe/London, UTC]
+
+    env:
+      TZ: ${{ matrix.tz }}
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nikkake_api_test
+
+    services:
+      postgres:
+        # 開発・CI・本番でメジャーバージョンを揃える。
+        # 揃えないと部分インデックスや配列型の挙動差で本番でだけ落ちる
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nikkake_api_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: nikkake_api
+          bundler-cache: true
+      - name: DB を用意する
+        working-directory: nikkake_api
+        run: bin/rails db:prepare
+      - name: テスト
+        working-directory: nikkake_api
+        run: bundle exec rspec
+      - name: 契約と実装の差を検査する
+        working-directory: nikkake_api
+        run: bundle exec rake graphql:verify
+
+  # 生成物は放っておくと腐る。実装から吐いたスキーマが契約と一致しているか
+  api-schema:
+    name: GraphQLスキーマの鮮度
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nikkake_api_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nikkake_api_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: nikkake_api
+          bundler-cache: true
+      - working-directory: nikkake_api
+        run: bin/rails db:prepare
+      - name: 吐き直して差分が無いことを確認する
+        working-directory: nikkake_api
+        run: |
+          bundle exec rake graphql:dump
+          git diff --exit-code ../packages/contract/schema.graphql
+
+  web:
+    name: Web (PC/SP)
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: development
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nikkake_development
+      # Vite の dev サーバが /graphql をプロキシするので CORS は要らないが、
+      # 設定漏れで「黙ってローカルモードのまま通る」事故を避けるため明示する
+      CORS_ORIGINS: http://localhost:5173
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nikkake_development
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: nikkake_api
+          bundler-cache: true
+      - run: npm ci
+      - name: Rails を立てる
+        working-directory: nikkake_api
+        run: |
+          bin/rails db:prepare
+          bin/rails runner 'PresetSyncer.call'
+          bin/rails s -p 3000 -b 127.0.0.1 &
+          npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000 || sleep 10
+      - run: npx playwright install --with-deps chromium
+        working-directory: nikkake_web
+      - run: npx playwright test
+        working-directory: nikkake_web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: web-playwright-report
+          path: nikkake_web/playwright-report
+          retention-days: 7
+
+  react-native:
+    name: React Native
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: development
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nikkake_development
+      # これを渡し忘れると遅延登録が黙って失敗し、
+      # サーバモードのE2Eがローカルモードのまま全部通る（docs/TESTING.md 参照）
+      CORS_ORIGINS: http://localhost:8081
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nikkake_development
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: nikkake_api
+          bundler-cache: true
+      - run: npm ci
+      - run: npm ci
+        working-directory: nikkake_react_native
+      - name: 型チェックと単体テスト
+        working-directory: nikkake_react_native
+        run: |
+          npx tsc --noEmit
+          npx jest
+      - run: npx playwright install --with-deps chromium
+        working-directory: nikkake_react_native
+
+      # 同じスイートが local / server の両方で通ることが、
+      # 移行で挙動が変わっていないことの証明になっている
+      - name: E2E（ローカルモード）
+        working-directory: nikkake_react_native
+        run: npx playwright test --project=chromium
+
+      - name: Rails を立てる
+        working-directory: nikkake_api
+        run: |
+          bin/rails db:prepare
+          bin/rails runner 'PresetSyncer.call'
+          bin/rails s -p 3000 -b 127.0.0.1 &
+          npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000 || sleep 10
+      - name: E2E（サーバモード）
+        working-directory: nikkake_react_native
+        env:
+          EXPO_PUBLIC_BACKEND: server
+        run: npx playwright test --project=chromium
+      - name: サーバに実際に届いているか確認する
+        run: |
+          # E2E が通っても、CORS 設定漏れなどで
+          # ローカルモードのまま通っている可能性がある。行数で裏を取る
+          COUNT=$(PGPASSWORD=postgres psql -h localhost -U postgres -d nikkake_development -t -A -c 'select count(*) from routine_logs')
+          echo "routine_logs: $COUNT"
+          test "$COUNT" -gt 0
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: rn-playwright-report
+          path: nikkake_react_native/playwright-report
+          retention-days: 7
+
+  flutter:
+    name: Flutter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - working-directory: nikkake_flutter
+        run: flutter pub get
+      - working-directory: nikkake_flutter
+        run: flutter analyze
+      - working-directory: nikkake_flutter
+        run: flutter test
+
+  kmp:
+    name: Kotlin Multiplatform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - working-directory: nikkake_kmp
+        run: ./gradlew :shared:desktopTest --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: kmp-test-report
+          path: nikkake_kmp/shared/build/reports/tests
+          retention-days: 7
