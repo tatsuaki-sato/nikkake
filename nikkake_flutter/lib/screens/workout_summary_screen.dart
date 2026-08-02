@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/colors.dart';
 import '../domain/date_utils.dart';
-import '../domain/stats.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
 import '../providers/workout_controller.dart';
@@ -22,7 +21,7 @@ class WorkoutSummaryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = context.watch<WorkoutController>().lastSummary;
-    final streak = calculateStreak(context.watch<AppState>().routineLogs);
+    final streak = context.watch<AppState>().home.streak;
 
     if (summary == null) {
       return Scaffold(

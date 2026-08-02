@@ -29,19 +29,22 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
-  void _start() {
+  Future<void> _start() async {
     final state = context.read<AppState>();
-    final routine = state.findRoutine(widget.routineId);
 
-    if (routine == null || routine.exercises.isEmpty) {
+    // 種目・目標値・前回の記録がまとめて1本で返る
+    final session = await state.repository
+        .getWorkoutSession(widget.routineId)
+        .catchError((_) => null);
+
+    if (!mounted) return;
+
+    if (session == null || session.exercises.isEmpty) {
       setState(() => _notFound = true);
       return;
     }
 
-    context.read<WorkoutController>().start(
-          routine,
-          lastSets: state.repository.getLastSetsByExercise(widget.routineId),
-        );
+    context.read<WorkoutController>().start(session);
     setState(() => _started = true);
   }
 
@@ -49,7 +52,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final summary = await context.read<WorkoutController>().finish();
     if (!mounted || summary == null) return;
 
-    context.read<AppState>().refresh();
+    await context.read<AppState>().refresh();
+    if (!mounted) return;
+
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const WorkoutSummaryScreen()),
     );

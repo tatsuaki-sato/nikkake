@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nikkake_flutter/data/local_db.dart';
 import 'package:nikkake_flutter/data/local_store.dart';
+import 'package:nikkake_flutter/data/nikkake_repository.dart';
 import 'package:nikkake_flutter/data/repository.dart';
 import 'package:nikkake_flutter/models/models.dart';
 import 'package:shared_preferences/shared_preferences.dart';

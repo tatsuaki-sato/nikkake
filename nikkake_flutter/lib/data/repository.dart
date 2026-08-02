@@ -1,69 +1,18 @@
 import '../constants/exercises.dart';
 import '../domain/date_utils.dart';
+import '../domain/stats.dart';
 import '../models/models.dart';
 import 'local_db.dart';
+import 'nikkake_repository.dart';
 
-/// ルーティン内の1種目の設定値
-class RoutineExerciseInput {
-  final String exerciseId;
-  final int targetSets;
-  final int? targetReps;
-  final double? targetWeight;
-  final int? targetDurationSec;
-  final int? restSec;
-
-  const RoutineExerciseInput({
-    required this.exerciseId,
-    this.targetSets = 3,
-    this.targetReps,
-    this.targetWeight,
-    this.targetDurationSec,
-    this.restSec,
-  });
-}
-
-class RoutineInput {
-  final String name;
-  final String? description;
-  final String icon;
-  final String color;
-  final FrequencyType frequencyType;
-  final int frequencyValue;
-  final List<int> frequencyDays;
-  final bool isActive;
-  final List<RoutineExerciseInput> exercises;
-
-  const RoutineInput({
-    required this.name,
-    this.description,
-    required this.icon,
-    required this.color,
-    this.frequencyType = FrequencyType.daily,
-    this.frequencyValue = 1,
-    this.frequencyDays = const [],
-    this.isActive = true,
-    this.exercises = const [],
-  });
-}
-
-class SaveWorkoutExercise {
-  final String routineExerciseId;
-  final String exerciseId;
-  final List<WorkoutSet> sets;
-
-  const SaveWorkoutExercise({
-    required this.routineExerciseId,
-    required this.exerciseId,
-    required this.sets,
-  });
-}
-
-/// 画面が直接触るデータAPI。
+/// 端末ローカルを真実の源とする実装。
 ///
 /// 参照も更新も必ずローカルストレージに対して行い、ネットワークは介在しない。
-/// サインインしている場合は SyncService がバックグラウンドでSupabaseへ複製するが、
-/// 画面はその成否を待たないので、オフラインでも常に即座に応答する。
-class Repository {
+/// サーバに登録できていない状態でもアプリが完全に動くのは、この実装があるため。
+///
+/// 集計済みビューは ServerRepository と同じ型を返す。
+/// 区分の基準を変えるときは、サーバの HomeViewBuilder なども同時に直すこと。
+class Repository implements NikkakeRepository {
   final LocalDb db;
 
   Repository(this.db);
@@ -75,6 +24,7 @@ class Repository {
   /// 初回起動時のデータ投入。
   /// サインインなしで即使えるよう、起動時点で「今日やるルーティン」を1つ用意する。
   /// ユーザーが消したあとに復活すると鬱陶しいので、投入は meta.seeded で1度だけ。
+  @override
   Future<bool> seedIfNeeded() async {
     final meta = db.getMeta();
     await _syncPresetExercises();
@@ -158,7 +108,7 @@ class Repository {
   // Exercises
   // ==============================
 
-  List<Exercise> listExercises() {
+  List<Exercise> _listExercises() {
     final rows = db.list(Collections.exercises).map(Exercise.fromJson).toList();
     rows.sort((a, b) {
       if (a.category != b.category) return a.category.index.compareTo(b.category.index);
@@ -167,6 +117,7 @@ class Repository {
     return rows;
   }
 
+  @override
   Future<Exercise> createCustomExercise({
     required String name,
     required ExerciseCategory category,
@@ -196,10 +147,10 @@ class Repository {
     return rows;
   }
 
-  List<RoutineWithExercises> listRoutinesWithExercises() {
+  List<RoutineWithExercises> _listRoutinesWithExercises() {
     final routines = listRoutines();
     final links = db.list(Collections.routineExercises).map(RoutineExercise.fromJson).toList();
-    final exerciseById = {for (final e in listExercises()) e.id: e};
+    final exerciseById = {for (final e in _listExercises()) e.id: e};
 
     return routines.map((routine) {
       final own = links.where((l) => l.routineId == routine.id).toList()
@@ -216,13 +167,14 @@ class Repository {
     }).toList();
   }
 
-  RoutineWithExercises? getRoutineWithExercises(String routineId) {
-    for (final r in listRoutinesWithExercises()) {
+  RoutineWithExercises? _getRoutineWithExercises(String routineId) {
+    for (final r in _listRoutinesWithExercises()) {
       if (r.id == routineId) return r;
     }
     return null;
   }
 
+  @override
   Future<Routine> createRoutine(RoutineInput input) async {
     final existing = listRoutines();
 
@@ -245,6 +197,7 @@ class Repository {
     return routine;
   }
 
+  @override
   Future<Routine?> updateRoutine(String routineId, RoutineInput input) async {
     final row = await db.update(Collections.routines, routineId, {
       'name': input.name,
@@ -297,10 +250,12 @@ class Repository {
     );
   }
 
+  @override
   Future<void> setRoutineActive(String routineId, bool isActive) async {
     await db.update(Collections.routines, routineId, {'is_active': isActive});
   }
 
+  @override
   Future<void> deleteRoutine(String routineId) async {
     await db.softDeleteWhere(
       Collections.routineExercises,
@@ -312,6 +267,14 @@ class Repository {
   // ==============================
   // Logs
   // ==============================
+
+
+  // ==============================
+  // ローカル専用の同期API
+  // ==============================
+  //
+  // 契約（NikkakeRepository）には載せない。サーバ実装には対応する口が無いため。
+  // 端末に何が書かれたかを確かめるテストからだけ使う。
 
   List<RoutineLog> listRoutineLogs() =>
       db.list(Collections.routineLogs).map(RoutineLog.fromJson).toList();
@@ -329,7 +292,7 @@ class Repository {
     final today = getDateString(now);
     final logs = listRoutineLogs();
 
-    return listRoutinesWithExercises().where((r) => r.routine.isActive).map((routine) {
+    return _listRoutinesWithExercises().where((r) => r.routine.isActive).map((routine) {
       final routineLogs = logs.where((l) => l.routineId == routine.id).toList()
         ..sort((a, b) => b.logDate.compareTo(a.logDate));
 
@@ -346,20 +309,27 @@ class Repository {
         // ストリークの判定(stats.didWorkout)と基準を揃えている。
         isCompleted: todayLog != null && todayLog.status != LogStatus.skipped,
         isDueToday: isRoutineDueToday(routine.routine, lastLog, now),
-        lastLog: lastLog,
+        frequencyLabel: formatFrequency(routine.routine),
       );
     }).toList();
   }
 
-  /// ワークアウト1回分の保存
-  Future<RoutineLog> saveWorkout({
+  /// ワークアウト1回分の保存。
+  ///
+  /// status は入力として受け取らない。完了セット数から必ずここで導出する。
+  /// 呼び出し側に決めさせると、サーバの WorkoutRecorder との判定基準が
+  /// ずれても誰も気づけない。
+  @override
+  Future<WorkoutSummary> saveWorkout({
     required String routineId,
     required DateTime startedAt,
     required int durationSec,
-    required LogStatus status,
     required List<SaveWorkoutExercise> exercises,
     String? notes,
   }) async {
+    final tally = tallyWorkout(exercises);
+    final status = resolveWorkoutStatus(tally.completedSets, tally.totalSets);
+
     final row = await db.insert(Collections.routineLogs, {
       'routine_id': routineId,
       'user_id': null,
@@ -390,7 +360,18 @@ class Repository {
     }
 
     await db.insertMany(Collections.exerciseLogs, exerciseLogs);
-    return routineLog;
+
+    final routine = listRoutines().where((r) => r.id == routineId).firstOrNull;
+
+    return WorkoutSummary(
+      routineLogId: routineLog.id,
+      routineName: routine?.name ?? '',
+      durationSec: durationSec,
+      completedSets: tally.completedSets,
+      totalSets: tally.totalSets,
+      totalVolume: tally.totalVolume,
+      status: status,
+    );
   }
 
   Future<void> deleteRoutineLog(String routineLogId) async {
@@ -434,13 +415,144 @@ class Repository {
     return result;
   }
 
-  /// 設定画面に出すローカル件数
-  Map<String, int> getLocalCounts() => {
-        for (final c in Collections.all) c: db.list(c).length,
-      };
+  @override
+  Future<DataCounts> getCounts() async => DataCounts(
+        routines: db.list(Collections.routines).length,
+        exercises: db.list(Collections.exercises).length,
+        routineLogs: db.list(Collections.routineLogs).length,
+        exerciseLogs: db.list(Collections.exerciseLogs).length,
+      );
 
+  @override
   Future<void> resetAll() async {
     await db.reset();
     await seedIfNeeded();
   }
+
+  /// サーバモードにしかない概念。ローカルでは常に送信済み扱い
+  @override
+  Future<int> pendingCount() async => 0;
+
+  // ==============================
+  // 契約が要求する非同期の口
+  // ==============================
+  //
+  // 中身は同期で終わるが、ServerRepository と形を揃えるために Future で包む。
+
+  @override
+  Future<List<Exercise>> listExercises() async => _listExercises();
+
+  @override
+  Future<List<RoutineWithExercises>> listRoutinesWithExercises() async =>
+      _listRoutinesWithExercises();
+
+  @override
+  Future<RoutineWithExercises?> getRoutineWithExercises(String routineId) async =>
+      _getRoutineWithExercises(routineId);
+
+  @override
+  Future<HomeView> getHome([DateTime? now]) async {
+    final items = getTodayRoutines(now);
+
+    return HomeView(
+      today: getDateString(now),
+      streak: calculateStreak(listRoutineLogs(), now),
+      due: items.where((i) => i.isDueToday && !i.isCompleted).toList(),
+      notScheduled: items.where((i) => !i.isDueToday && !i.isCompleted).toList(),
+      completed: items.where((i) => i.isCompleted).toList(),
+    );
+  }
+
+  @override
+  Future<ProgressView> getProgress({int rangeDays = 7, DateTime? now}) async {
+    final routineLogs = listRoutineLogs();
+    final exerciseLogs = listExerciseLogs();
+    final loggedIds = exerciseLogs.map((l) => l.exerciseId).toSet();
+
+    return ProgressView(
+      overall: calculateOverallStats(routineLogs, exerciseLogs, now),
+      streak: calculateStreak(routineLogs, now),
+      dailyStats: calculateDailyStats(routineLogs, rangeDays, now),
+      completedDates: completedDateSet(routineLogs),
+      exercisesWithLogs:
+          _listExercises().where((e) => loggedIds.contains(e.id)).toList(),
+    );
+  }
+
+  @override
+  Future<List<ExerciseProgressPoint>> getExerciseProgressPoints(
+    String exerciseId, {
+    int limit = 8,
+  }) async {
+    final points =
+        calculateExerciseProgress(exerciseId, listRoutineLogs(), listExerciseLogs());
+    return points.length <= limit ? points : points.sublist(points.length - limit);
+  }
+
+  @override
+  Future<WorkoutSessionView?> getWorkoutSession(String routineId) async {
+    final routine = _getRoutineWithExercises(routineId);
+    if (routine == null) return null;
+
+    final previous = getLastSetsByExercise(routineId);
+
+    return WorkoutSessionView(
+      routine: routine,
+      exercises: routine.exercises.map((link) {
+        final sets = previous[link.exercise.id] ?? const <WorkoutSet>[];
+
+        return WorkoutSessionEntry(
+          routineExerciseId: link.link.id,
+          exercise: link.exercise,
+          targetSets: link.link.targetSets,
+          targetReps: link.link.targetReps,
+          targetWeight: link.link.targetWeight,
+          targetDurationSec: link.link.targetDurationSec,
+          restSec: link.link.restSec ?? defaultRestSec,
+          previousSets: sets,
+          previousLabel: sets.isEmpty
+              ? null
+              : formatPreviousSets(sets
+                  .map((s) => PreviousSetLike(
+                        reps: s.reps,
+                        weight: s.weight,
+                        durationSec: s.durationSec,
+                      ))
+                  .toList()),
+        );
+      }).toList(),
+    );
+  }
+}
+
+/// 完了セット数から status を決める。サーバの判定基準と同じ
+LogStatus resolveWorkoutStatus(int completedSets, int totalSets) {
+  if (completedSets == 0) return LogStatus.skipped;
+  if (completedSets >= totalSets) return LogStatus.completed;
+  return LogStatus.partial;
+}
+
+class WorkoutTally {
+  const WorkoutTally(this.completedSets, this.totalSets, this.totalVolume);
+  final int completedSets;
+  final int totalSets;
+  final double totalVolume;
+}
+
+WorkoutTally tallyWorkout(List<SaveWorkoutExercise> exercises) {
+  var completedSets = 0;
+  var totalSets = 0;
+  var totalVolume = 0.0;
+
+  for (final exercise in exercises) {
+    for (final set in exercise.sets) {
+      totalSets++;
+      if (set.completed) {
+        completedSets++;
+        totalVolume += (set.weight ?? 0) * (set.reps ?? 0);
+      }
+    }
+  }
+
+  return WorkoutTally(completedSets, totalSets, totalVolume);
 }

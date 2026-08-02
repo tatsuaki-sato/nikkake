@@ -24,11 +24,28 @@ class LocalMeta {
   /// 同期先アカウント。別アカウントでサインインしたらカーソルを捨てる
   final String? syncUserId;
 
+  /// サーバが発行した匿名トークン。生の値はここにしか無い
+  final String? apiToken;
+
+  /// 端末のデータをサーバへ預けた日時。
+  /// 一度入ったら二度と送らない。繰り返すとサーバで消したルーティンが復活する
+  final String? snapshotImportedAt;
+
+  /// 送信待ちの記録（JSON文字列）
+  final String? offlineQueue;
+
+  /// 送信を諦めた記録。設定画面に出して手動対応させる
+  final String? offlineQueueDead;
+
   const LocalMeta({
     this.schemaVersion = LocalDb.currentSchemaVersion,
     this.seeded = false,
     this.lastSyncedAt,
     this.syncUserId,
+    this.apiToken,
+    this.snapshotImportedAt,
+    this.offlineQueue,
+    this.offlineQueueDead,
   });
 
   factory LocalMeta.fromJson(Map<String, dynamic> json) => LocalMeta(
@@ -37,6 +54,10 @@ class LocalMeta {
         lastSyncedAt:
             json['lastSyncedAt'] == null ? null : DateTime.parse(json['lastSyncedAt'] as String),
         syncUserId: json['syncUserId'] as String?,
+        apiToken: json['apiToken'] as String?,
+        snapshotImportedAt: json['snapshotImportedAt'] as String?,
+        offlineQueue: json['offlineQueue'] as String?,
+        offlineQueueDead: json['offlineQueueDead'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -44,13 +65,30 @@ class LocalMeta {
         'seeded': seeded,
         'lastSyncedAt': lastSyncedAt?.toIso8601String(),
         'syncUserId': syncUserId,
+        'apiToken': apiToken,
+        'snapshotImportedAt': snapshotImportedAt,
+        'offlineQueue': offlineQueue,
+        'offlineQueueDead': offlineQueueDead,
       };
 
-  LocalMeta copyWith({bool? seeded, DateTime? lastSyncedAt, String? syncUserId}) => LocalMeta(
+  LocalMeta copyWith({
+    bool? seeded,
+    DateTime? lastSyncedAt,
+    String? syncUserId,
+    String? apiToken,
+    String? snapshotImportedAt,
+    String? offlineQueue,
+    String? offlineQueueDead,
+  }) =>
+      LocalMeta(
         schemaVersion: schemaVersion,
         seeded: seeded ?? this.seeded,
         lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
         syncUserId: syncUserId ?? this.syncUserId,
+        apiToken: apiToken ?? this.apiToken,
+        snapshotImportedAt: snapshotImportedAt ?? this.snapshotImportedAt,
+        offlineQueue: offlineQueue ?? this.offlineQueue,
+        offlineQueueDead: offlineQueueDead ?? this.offlineQueueDead,
       );
 }
 
@@ -77,11 +115,23 @@ class LocalDb {
 
   LocalMeta getMeta() => LocalMeta.fromJson(store.readObject('meta', const LocalMeta().toJson()));
 
-  Future<LocalMeta> setMeta({bool? seeded, DateTime? lastSyncedAt, String? syncUserId}) async {
+  Future<LocalMeta> setMeta({
+    bool? seeded,
+    DateTime? lastSyncedAt,
+    String? syncUserId,
+    String? apiToken,
+    String? snapshotImportedAt,
+    String? offlineQueue,
+    String? offlineQueueDead,
+  }) async {
     final next = getMeta().copyWith(
       seeded: seeded,
       lastSyncedAt: lastSyncedAt,
       syncUserId: syncUserId,
+      apiToken: apiToken,
+      snapshotImportedAt: snapshotImportedAt,
+      offlineQueue: offlineQueue,
+      offlineQueueDead: offlineQueueDead,
     );
     await store.writeObject('meta', next.toJson());
     return next;

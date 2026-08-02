@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/colors.dart';
 import '../domain/date_utils.dart';
-import '../domain/stats.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
 import '../widgets/ui.dart';
@@ -21,13 +20,21 @@ class _ProgressScreenState extends State<ProgressScreen> {
   int _range = 7;
   String? _selectedExerciseId;
 
+  /// 種目別の推移はサーバへの別クエリなので、取れたぶんだけ持っておく
+  final Map<String, List<ExerciseProgressPoint>> _pointsByExercise = {};
+
+  Future<void> _loadPoints(AppState state, String exerciseId) async {
+    final points = await state.exerciseProgress(exerciseId);
+    if (!mounted) return;
+    setState(() => _pointsByExercise[exerciseId] = points);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final routineLogs = state.routineLogs;
-    final exerciseLogs = state.exerciseLogs;
+    final view = state.progress;
 
-    if (routineLogs.isEmpty) {
+    if (view.overall.totalWorkouts == 0) {
       return const Center(
         child: EmptyState(
           key: Key('progress-empty'),
@@ -38,20 +45,25 @@ class _ProgressScreenState extends State<ProgressScreen> {
       );
     }
 
-    final overall = calculateOverallStats(routineLogs, exerciseLogs);
-    final streak = calculateStreak(routineLogs);
-    final daily = calculateDailyStats(routineLogs, _range);
-    final doneDates = completedDateSet(routineLogs);
+    // 数字はすべてサーバが集計したものを表示するだけ。
+    // ここに計算を書き足したら、それはサーバへ移すべきロジックが漏れている。
+    final overall = view.overall;
+    final streak = view.streak;
+    final daily = view.dailyStats;
+    final doneDates = view.completedDates;
 
-    // 記録が残っている種目だけを選択肢にする
-    final loggedIds = exerciseLogs.map((l) => l.exerciseId).toSet();
-    final loggedExercises = state.exercises.where((e) => loggedIds.contains(e.id)).toList();
+    // 記録が残っている種目だけが返ってくる
+    final loggedExercises = view.exercisesWithLogs;
 
     final activeExerciseId = _selectedExerciseId ??
         (loggedExercises.isEmpty ? null : loggedExercises.first.id);
     final progress = activeExerciseId == null
-        ? <ExerciseProgressPoint>[]
-        : calculateExerciseProgress(activeExerciseId, routineLogs, exerciseLogs);
+        ? const <ExerciseProgressPoint>[]
+        : (_pointsByExercise[activeExerciseId] ?? const <ExerciseProgressPoint>[]);
+
+    if (activeExerciseId != null && !_pointsByExercise.containsKey(activeExerciseId)) {
+      _loadPoints(state, activeExerciseId);
+    }
 
     final maxCount = daily.fold(1, (m, d) => d.completedCount > m ? d.completedCount : m);
 
@@ -89,7 +101,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       key: Key('progress-range-$value'),
                       label: '$value日',
                       selected: _range == value,
-                      onTap: () => setState(() => _range = value),
+                      onTap: () {
+                        setState(() => _range = value);
+                        // 集計期間はサーバに投げ直す。手元で切り出さない
+                        context.read<AppState>().setProgressRange(value);
+                      },
                     ),
                   ),
               ],

@@ -1,13 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../constants/exercises.dart';
-import '../data/repository.dart';
+import '../data/nikkake_repository.dart';
 import '../models/models.dart';
 
 /// 実行中のワークアウトの状態。
 /// 保存はローカルストレージへの書き込みなので即座に完了する。
 class WorkoutController extends ChangeNotifier {
-  final Repository repository;
+  final NikkakeRepository repository;
 
   WorkoutController(this.repository);
 
@@ -38,11 +37,11 @@ class WorkoutController extends ChangeNotifier {
   int get totalSetCount => _exercises.fold(0, (sum, e) => sum + e.sets.length);
   double get progress => totalSetCount == 0 ? 0 : completedSetCount / totalSetCount;
 
-  void start(RoutineWithExercises routine, {Map<String, List<WorkoutSet>>? lastSets}) {
-    final previous = lastSets ?? const {};
-
-    _routineId = routine.id;
-    _routineName = routine.name;
+  /// 実行を開始する。
+  /// 「前回の記録」はセッションに解決済みで入っているので、ここで過去ログを漁らない。
+  void start(WorkoutSessionView session) {
+    _routineId = session.routine.id;
+    _routineName = session.routine.name;
     _currentIndex = 0;
     _startedAt = DateTime.now();
     _elapsedSec = 0;
@@ -50,28 +49,27 @@ class WorkoutController extends ChangeNotifier {
     _restActive = false;
     _lastSummary = null;
 
-    _exercises = routine.exercises.map((entry) {
-      final link = entry.link;
-      final previousSets = previous[link.exerciseId] ?? const <WorkoutSet>[];
-      final setCount = link.targetSets < 1 ? 1 : link.targetSets;
+    _exercises = session.exercises.map((entry) {
+      final previousSets = entry.previousSets;
+      final setCount = entry.targetSets < 1 ? 1 : entry.targetSets;
 
       return WorkoutExerciseState(
-        routineExerciseId: link.id,
+        routineExerciseId: entry.routineExerciseId,
         exercise: entry.exercise,
         targetSets: setCount,
-        targetReps: link.targetReps,
-        targetWeight: link.targetWeight,
-        targetDurationSec: link.targetDurationSec,
-        restSec: link.restSec ?? defaultRestSec,
+        targetReps: entry.targetReps,
+        targetWeight: entry.targetWeight,
+        targetDurationSec: entry.targetDurationSec,
+        restSec: entry.restSec,
         previousSets: previousSets,
         // 前回の記録があればそれを初期値にする。前回と同じ重量から始めることが多いため。
         sets: List.generate(setCount, (i) {
           final prev = previousSets.where((s) => s.setNumber == i + 1).firstOrNull;
           return WorkoutSet(
             setNumber: i + 1,
-            reps: prev?.reps ?? link.targetReps,
-            weight: prev?.weight ?? link.targetWeight,
-            durationSec: prev?.durationSec ?? link.targetDurationSec,
+            reps: prev?.reps ?? entry.targetReps,
+            weight: prev?.weight ?? entry.targetWeight,
+            durationSec: prev?.durationSec ?? entry.targetDurationSec,
           );
         }),
       );
@@ -193,26 +191,14 @@ class WorkoutController extends ChangeNotifier {
     final startedAt = _startedAt;
     if (routineId == null || startedAt == null) return null;
 
-    final completed = completedSetCount;
-    final total = totalSetCount;
-
-    var volume = 0.0;
-    for (final exercise in _exercises) {
-      for (final set in exercise.sets.where((s) => s.completed)) {
-        volume += (set.weight ?? 0) * (set.reps ?? 0);
-      }
-    }
-
-    final status = completed == 0
-        ? LogStatus.skipped
-        : (completed >= total ? LogStatus.completed : LogStatus.partial);
     final durationSec = DateTime.now().difference(startedAt).inSeconds;
 
-    final log = await repository.saveWorkout(
+    // セット数の集計も status の判定もリポジトリが行う。
+    // ここで決めるとサーバの判定基準とずれたときに気づけない。
+    final saved = await repository.saveWorkout(
       routineId: routineId,
       startedAt: startedAt,
       durationSec: durationSec,
-      status: status,
       exercises: _exercises
           .map((e) => SaveWorkoutExercise(
                 routineExerciseId: e.routineExerciseId,
@@ -222,14 +208,16 @@ class WorkoutController extends ChangeNotifier {
           .toList(),
     );
 
+    // ルーティン名だけは手元のほうが確実。
+    // オフラインで記録したときサーバは名前を返せない
     final summary = WorkoutSummary(
-      routineLogId: log.id,
+      routineLogId: saved.routineLogId,
       routineName: _routineName,
-      durationSec: durationSec,
-      completedSets: completed,
-      totalSets: total,
-      totalVolume: volume,
-      status: status,
+      durationSec: saved.durationSec,
+      completedSets: saved.completedSets,
+      totalSets: saved.totalSets,
+      totalVolume: saved.totalVolume,
+      status: saved.status,
     );
 
     _clear();

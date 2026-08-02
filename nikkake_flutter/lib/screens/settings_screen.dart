@@ -62,7 +62,7 @@ class SettingsScreen extends StatelessWidget {
     final auth = context.watch<AuthController?>();
     final mode = auth?.mode ?? StorageMode.local;
     final state = context.watch<AppState>();
-    final counts = state.localCounts;
+    final counts = state.counts;
 
     return ListView(
       key: const Key('settings-screen'),
@@ -202,10 +202,10 @@ class SettingsScreen extends StatelessWidget {
           key: const Key('settings-counts'),
           child: Column(
             children: [
-              _CountRow(label: 'ルーティン', value: counts['routines'] ?? 0, valueKey: const Key('count-routines')),
-              _CountRow(label: '種目', value: counts['exercises'] ?? 0, valueKey: const Key('count-exercises')),
-              _CountRow(label: 'ワークアウト記録', value: counts['routine_logs'] ?? 0, valueKey: const Key('count-logs')),
-              _CountRow(label: 'セット記録', value: counts['exercise_logs'] ?? 0, valueKey: const Key('count-sets')),
+              _CountRow(label: 'ルーティン', value: counts.routines, valueKey: const Key('count-routines')),
+              _CountRow(label: '種目', value: counts.exercises, valueKey: const Key('count-exercises')),
+              _CountRow(label: 'ワークアウト記録', value: counts.routineLogs, valueKey: const Key('count-logs')),
+              _CountRow(label: 'セット記録', value: counts.exerciseLogs, valueKey: const Key('count-sets')),
             ],
           ),
         ),

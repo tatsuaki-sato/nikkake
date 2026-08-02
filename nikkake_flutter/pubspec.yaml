@@ -41,6 +41,11 @@ dependencies:
   # 端末ローカルが真実の源。サインインしなくても全機能が動く土台
   shared_preferences: ^2.5.3
   uuid: ^4.5.1
+  # GraphQL は素のPOST1本なので、専用クライアントは入れない
+  http: ^1.2.2
+  # Dart の DateTime.timeZoneName は "JST" のような略称しか返さない。
+  # サーバへは IANA 名（Asia/Tokyo）を送る必要があるので入れている
+  flutter_timezone: ^4.1.1
 
 dev_dependencies:
   flutter_test:

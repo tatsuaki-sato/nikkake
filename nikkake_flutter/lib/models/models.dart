@@ -414,13 +414,16 @@ class TodayRoutine {
   final RoutineWithExercises routine;
   final bool isCompleted;
   final bool isDueToday;
-  final RoutineLog? lastLog;
+
+  /// 「毎日」「3日ごと」。サーバが返す文言をそのまま出す。
+  /// クライアントで組み立てると4実装で表記が割れる
+  final String frequencyLabel;
 
   const TodayRoutine({
     required this.routine,
     required this.isCompleted,
     required this.isDueToday,
-    this.lastLog,
+    this.frequencyLabel = '',
   });
 }
 

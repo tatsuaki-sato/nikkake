@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nikkake_flutter/constants/exercises.dart';
+import 'package:nikkake_flutter/data/nikkake_repository.dart';
 import 'package:nikkake_flutter/data/repository.dart';
 import 'package:nikkake_flutter/models/models.dart';
 import 'package:nikkake_flutter/providers/workout_controller.dart';
@@ -8,7 +9,7 @@ import 'helpers.dart';
 void main() {
   late Repository repository;
   late WorkoutController controller;
-  late RoutineWithExercises routine;
+  late WorkoutSessionView session;
 
   setUp(() async {
     repository = await createSeededRepository();
@@ -32,14 +33,14 @@ void main() {
       ],
     ));
 
-    routine = repository.getRoutineWithExercises(created.id)!;
+    session = (await repository.getWorkoutSession(created.id))!;
   });
 
   tearDown(() => controller.dispose());
 
   group('ワークアウトの開始', () {
     test('目標値をそのままセットの初期値にする', () {
-      controller.start(routine);
+      controller.start(session);
 
       expect(controller.exercises.length, 2);
       expect(controller.exercises[0].sets.length, 2);
@@ -50,14 +51,19 @@ void main() {
     });
 
     test('前回の記録があればそちらを初期値にする', () {
-      final exerciseId = routine.exercises.first.exercise.id;
-
-      controller.start(routine, lastSets: {
-        exerciseId: const [
-          WorkoutSet(setNumber: 1, reps: 12, weight: 65, completed: true),
-          WorkoutSet(setNumber: 2, reps: 11, weight: 65, completed: true),
+      // 前回の記録はサーバ（ローカル実装なら getWorkoutSession）が解決して渡してくる
+      final withPrevious = WorkoutSessionView(
+        routine: session.routine,
+        exercises: [
+          _withPreviousSets(session.exercises.first, const [
+            WorkoutSet(setNumber: 1, reps: 12, weight: 65, completed: true),
+            WorkoutSet(setNumber: 2, reps: 11, weight: 65, completed: true),
+          ]),
+          ...session.exercises.skip(1),
         ],
-      });
+      );
+
+      controller.start(withPrevious);
 
       expect(controller.exercises[0].sets[0].reps, 12);
       expect(controller.exercises[0].sets[0].weight, 65);
@@ -66,7 +72,7 @@ void main() {
   });
 
   group('セットの操作', () {
-    setUp(() => controller.start(routine));
+    setUp(() => controller.start(session));
 
     test('値を編集できる', () {
       controller.updateSet(0, 1, (s) => s.copyWith(weight: 70, reps: 8));
@@ -92,7 +98,7 @@ void main() {
     });
 
     test('レストタイマーは0で自動停止し、マイナスにならない', () {
-      controller.start(routine);
+      controller.start(session);
       controller.startRestTimer(2);
 
       controller.tick();
@@ -131,7 +137,7 @@ void main() {
 
   group('ワークアウトの完了', () {
     test('全セット完了なら completed として保存される', () async {
-      controller.start(routine);
+      controller.start(session);
       controller.toggleSetComplete(0, 1);
       controller.toggleSetComplete(0, 2);
       controller.toggleSetComplete(1, 1);
@@ -150,7 +156,7 @@ void main() {
     });
 
     test('一部だけなら partial になる', () async {
-      controller.start(routine);
+      controller.start(session);
       controller.toggleSetComplete(0, 1);
 
       final summary = await controller.finish();
@@ -161,7 +167,7 @@ void main() {
     });
 
     test('1つも完了していなければ skipped になる', () async {
-      controller.start(routine);
+      controller.start(session);
 
       final summary = await controller.finish();
 
@@ -170,7 +176,7 @@ void main() {
     });
 
     test('完了後は実行中の状態がクリアされ、サマリーが残る', () async {
-      controller.start(routine);
+      controller.start(session);
       await controller.finish();
 
       expect(controller.isActive, isFalse);
@@ -179,7 +185,7 @@ void main() {
     });
 
     test('中断すると何も保存されない', () async {
-      controller.start(routine);
+      controller.start(session);
       controller.toggleSetComplete(0, 1);
       controller.cancel();
 
@@ -192,3 +198,19 @@ void main() {
     });
   });
 }
+
+/// セッションの1件だけ「前回の記録」を差し替える
+WorkoutSessionEntry _withPreviousSets(
+  WorkoutSessionEntry entry,
+  List<WorkoutSet> previousSets,
+) =>
+    WorkoutSessionEntry(
+      routineExerciseId: entry.routineExerciseId,
+      exercise: entry.exercise,
+      targetSets: entry.targetSets,
+      targetReps: entry.targetReps,
+      targetWeight: entry.targetWeight,
+      targetDurationSec: entry.targetDurationSec,
+      restSec: entry.restSec,
+      previousSets: previousSets,
+    );

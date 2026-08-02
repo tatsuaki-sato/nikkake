@@ -142,4 +142,24 @@ RSpec.describe "匿名アカウントと初期ルーティン" do
       expect(routine.reload.deleted_at).to be_present
     end
   end
+
+  describe "タイムゾーンの正規化" do
+    it "IANA名はそのまま保存する" do
+      result = AccountCreator.call(time_zone: "Pacific/Honolulu")
+      expect(result.user.time_zone).to eq("Pacific/Honolulu")
+    end
+
+    it "解決できない略称は既定へ寄せる" do
+      # Dart の DateTime.timeZoneName は "JST" のような略称しか返さない。
+      # そのまま保存すると ActiveSupport::TimeZone が解決できず、
+      # バッチ処理が黙って動かなくなる
+      result = AccountCreator.call(time_zone: "JST")
+      expect(result.user.time_zone).to eq("Asia/Tokyo")
+      expect(ActiveSupport::TimeZone[result.user.time_zone]).to be_present
+    end
+
+    it "空文字でも既定が入る" do
+      expect(AccountCreator.call(time_zone: "").user.time_zone).to eq("Asia/Tokyo")
+    end
+  end
 end

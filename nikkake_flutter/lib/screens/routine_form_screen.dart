@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../constants/colors.dart';
 import '../constants/exercises.dart';
-import '../data/repository.dart';
+import '../data/nikkake_repository.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
 import '../widgets/ui.dart';

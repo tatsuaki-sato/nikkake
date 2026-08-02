@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nikkake_flutter/constants/exercises.dart';
+import 'package:nikkake_flutter/data/nikkake_repository.dart';
 import 'package:nikkake_flutter/data/repository.dart';
 import 'package:nikkake_flutter/domain/date_utils.dart';
 import 'package:nikkake_flutter/models/models.dart';
@@ -13,16 +14,16 @@ void main() {
   });
 
   group('初期状態', () {
-    test('サインインしなくても、起動直後にすぐ始められるルーティンがある', () {
-      final routines = repository.listRoutinesWithExercises();
+    test('サインインしなくても、起動直後にすぐ始められるルーティンがある', () async {
+      final routines = await repository.listRoutinesWithExercises();
 
       expect(routines.length, 1);
       expect(routines.first.name, starterRoutineName);
       expect(routines.first.exercises, isNotEmpty);
     });
 
-    test('プリセット種目が全件入っている', () {
-      expect(repository.listExercises().length, presetExercises.length);
+    test('プリセット種目が全件入っている', () async {
+      expect((await repository.listExercises()).length, presetExercises.length);
     });
 
     test('2回目の起動では初期ルーティンを作り直さない', () async {
@@ -34,7 +35,7 @@ void main() {
   group('ルーティンのCRUD', () {
     test('作成すると種目の紐付けごと保存される', () async {
       final routine = await repository.createRoutine(sampleRoutineInput(name: '新しいメニュー'));
-      final loaded = repository.getRoutineWithExercises(routine.id);
+      final loaded = await repository.getRoutineWithExercises(routine.id);
 
       expect(loaded?.name, '新しいメニュー');
       expect(loaded?.exercises.length, 1);
@@ -56,7 +57,7 @@ void main() {
         ),
       );
 
-      final loaded = repository.getRoutineWithExercises(routine.id);
+      final loaded = await repository.getRoutineWithExercises(routine.id);
 
       expect(loaded?.name, '更新後');
       expect(loaded?.exercises.length, 2);
@@ -68,7 +69,7 @@ void main() {
       final routine = await repository.createRoutine(sampleRoutineInput());
       await repository.deleteRoutine(routine.id);
 
-      expect(repository.getRoutineWithExercises(routine.id), isNull);
+      expect(await repository.getRoutineWithExercises(routine.id), isNull);
       expect(repository.listRoutines().where((r) => r.id == routine.id), isEmpty);
     });
 
@@ -102,7 +103,8 @@ void main() {
         icon: '🌟',
       );
 
-      final created = repository.listExercises().firstWhere((e) => e.name == '自作トレ');
+      final created =
+          (await repository.listExercises()).firstWhere((e) => e.name == '自作トレ');
       expect(created.isPreset, isFalse);
     });
   });
@@ -110,7 +112,7 @@ void main() {
   group('ワークアウトの保存', () {
     Future<(Routine, RoutineExerciseWithExercise)> setUpWorkout() async {
       final routine = await repository.createRoutine(sampleRoutineInput());
-      final loaded = repository.getRoutineWithExercises(routine.id)!;
+      final loaded = (await repository.getRoutineWithExercises(routine.id))!;
       return (routine, loaded.exercises.first);
     }
 
@@ -121,7 +123,6 @@ void main() {
         routineId: routine.id,
         startedAt: DateTime.now(),
         durationSec: 600,
-        status: LogStatus.completed,
         exercises: [
           SaveWorkoutExercise(
             routineExerciseId: link.link.id,
@@ -147,7 +148,6 @@ void main() {
         routineId: routine.id,
         startedAt: DateTime.now(),
         durationSec: 300,
-        status: LogStatus.completed,
         exercises: [
           SaveWorkoutExercise(
             routineExerciseId: link.link.id,
@@ -162,22 +162,29 @@ void main() {
       expect(todayLogs.first.logDate, getDateString());
     });
 
-    test('完了済みのルーティンは今日の一覧で完了扱いになる', () async {
+    test('全セット完了なら completed になり、今日の一覧でも完了扱いになる', () async {
       final (routine, link) = await setUpWorkout();
 
-      await repository.saveWorkout(
+      // status は入力せず、完了セット数から導出される
+      final summary = await repository.saveWorkout(
         routineId: routine.id,
         startedAt: DateTime.now(),
         durationSec: 300,
-        status: LogStatus.completed,
         exercises: [
           SaveWorkoutExercise(
             routineExerciseId: link.link.id,
             exerciseId: link.exercise.id,
-            sets: const [],
+            sets: const [
+              WorkoutSet(setNumber: 1, reps: 10, weight: 50, completed: true),
+              WorkoutSet(setNumber: 2, reps: 10, weight: 50, completed: true),
+            ],
           ),
         ],
       );
+
+      expect(summary.status, LogStatus.completed);
+      expect(summary.completedSets, 2);
+      expect(summary.totalVolume, 1000);
 
       final today = repository.getTodayRoutines().firstWhere((t) => t.routine.id == routine.id);
       expect(today.isCompleted, isTrue);
@@ -190,7 +197,6 @@ void main() {
         routineId: routine.id,
         startedAt: DateTime.now(),
         durationSec: 120,
-        status: LogStatus.partial,
         exercises: [
           SaveWorkoutExercise(
             routineExerciseId: link.link.id,
@@ -211,7 +217,6 @@ void main() {
         routineId: routine.id,
         startedAt: DateTime.now(),
         durationSec: 10,
-        status: LogStatus.skipped,
         exercises: [
           SaveWorkoutExercise(
             routineExerciseId: link.link.id,
@@ -232,7 +237,6 @@ void main() {
         routineId: routine.id,
         startedAt: DateTime.now(),
         durationSec: 300,
-        status: LogStatus.completed,
         exercises: [
           SaveWorkoutExercise(
             routineExerciseId: link.link.id,
@@ -259,7 +263,6 @@ void main() {
         routineId: routine.id,
         startedAt: DateTime.now(),
         durationSec: 300,
-        status: LogStatus.completed,
         exercises: [
           SaveWorkoutExercise(
             routineExerciseId: link.link.id,
@@ -284,7 +287,6 @@ void main() {
         routineId: routine.id,
         startedAt: DateTime.now(),
         durationSec: 300,
-        status: LogStatus.completed,
         exercises: [
           SaveWorkoutExercise(
             routineExerciseId: link.link.id,
@@ -296,7 +298,7 @@ void main() {
 
       expect(repository.listExerciseLogs().length, 1);
 
-      await repository.deleteRoutineLog(log.id);
+      await repository.deleteRoutineLog(log.routineLogId);
 
       expect(repository.listExerciseLogs(), isEmpty);
       expect(repository.listRoutineLogs(), isEmpty);

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/colors.dart';
 import '../domain/date_utils.dart';
-import '../domain/stats.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
 import '../widgets/ui.dart';
@@ -18,12 +17,14 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final streak = calculateStreak(state.routineLogs);
 
-    final today = state.todayRoutines;
-    final due = today.where((t) => t.isDueToday && !t.isCompleted).toList();
-    final later = today.where((t) => !t.isDueToday && !t.isCompleted).toList();
-    final done = today.where((t) => t.isCompleted).toList();
+    // 区分（今日やる / 予定なし / 完了）も連続記録もサーバが決める。
+    // ここで振り分け直すと、サーバと基準がずれても誰も気づけない。
+    final home = state.home;
+    final streak = home.streak;
+    final due = home.due;
+    final later = home.notScheduled;
+    final done = home.completed;
 
     return RefreshIndicator(
       onRefresh: () async => state.refresh(),
@@ -41,7 +42,7 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.md),
 
-          if (today.isEmpty)
+          if (home.total == 0)
             EmptyState(
               key: const Key('home-empty'),
               icon: '📋',
@@ -222,7 +223,7 @@ class _RoutineCard extends StatelessWidget {
                       Text(
                         state == _CardState.done
                             ? '今日は完了しました'
-                            : '${formatFrequency(routine)} ・ ${item.routine.exercises.length}種目',
+                            : '${item.frequencyLabel} ・ ${item.routine.exercises.length}種目',
                         style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
                       ),
                     ],
