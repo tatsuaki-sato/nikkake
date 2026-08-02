@@ -44,5 +44,9 @@ module NikkakeApi
     # CHECK制約・部分インデックス・配列型・（将来入れる場合の）RLSポリシーは
     # schema.rb では表現しきれないため SQL 形式で保持する
     config.active_record.schema_format = :sql
+
+    # API専用モードには Cookie が含まれない。
+    # Web クライアントは httpOnly Cookie でトークンを持つ（localStorage は XSS で抜かれる）ので有効化する。
+    config.middleware.use ActionDispatch::Cookies
   end
 end

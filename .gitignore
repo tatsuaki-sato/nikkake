@@ -56,3 +56,4 @@ nikkake_api/.bundle/
 nikkake_api/log/
 nikkake_api/tmp/
 nikkake_api/config/master.key
+packages/contract/schema.generated.graphql
