@@ -169,7 +169,18 @@ jobs:
           curl -fsS -X POST http://127.0.0.1:3000/graphql \
             -H 'Content-Type: application/json' \
             -d '{"query":"{ __typename }"}'
-          cd nikkake_web && npx playwright test
+          cd nikkake_web && npx playwright test 2>&1 | tee /tmp/web-e2e.log
+
+      # 失敗の中身を注釈として出す。
+      # 実行ログとアーティファクトはリポジトリの管理者しか読めないが、
+      # 注釈は公開APIから読めるので、原因を追うのにこれが要る
+      - name: 失敗した内容を注釈に出す
+        if: failure()
+        run: |
+          tail -80 /tmp/web-e2e.log | while IFS= read -r line; do
+            printf '::error::%s\n' "$line"
+          done
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -240,7 +251,15 @@ jobs:
         run: |
           (cd nikkake_api && bin/rails s -p 3000 -b 0.0.0.0 &)
           npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000
-          cd nikkake_react_native && npx playwright test --project=chromium
+          cd nikkake_react_native && npx playwright test --project=chromium 2>&1 | tee /tmp/rn-e2e.log
+
+      - name: 失敗した内容を注釈に出す
+        if: failure()
+        run: |
+          tail -80 /tmp/rn-e2e.log | while IFS= read -r line; do
+            printf '::error::%s\n' "$line"
+          done
+
       - name: サーバに実際に届いているか確認する
         run: |
           # E2E が通っても、CORS 設定漏れなどで
