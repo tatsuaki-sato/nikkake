@@ -49,3 +49,10 @@ nikkake_kmp/**/xcuserdata/
 
 # ---- 契約パッケージ ----
 packages/*/node_modules/
+
+# ---- Rails ----
+nikkake_api/vendor/bundle/
+nikkake_api/.bundle/
+nikkake_api/log/
+nikkake_api/tmp/
+nikkake_api/config/master.key

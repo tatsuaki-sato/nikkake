@@ -1,0 +1,20 @@
+# gem はプロジェクト内に入れている（グローバルの gem ディレクトリに書き込み権限が無いため）
+/vendor/bundle/
+/.bundle/
+
+# ログと一時ファイル
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+/tmp/pids/*
+!/tmp/pids/.keep
+/tmp/storage/*
+!/tmp/storage/.keep
+
+# 環境ごとの秘匿情報
+/config/master.key
+/config/credentials/*.key
+
+/public/assets
+.byebug_history
