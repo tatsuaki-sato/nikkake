@@ -26,7 +26,7 @@
 | Rails API | [nikkake_api](nikkake_api) | Ruby 4 / Rails 8 / graphql-ruby / PostgreSQL 16 | 仕様の実行可能な正典 |
 | Web (PC/SP) | [nikkake_web](nikkake_web) | Vite 6, React 19, TanStack Query | サーバ主導のリファレンス |
 | React Native | [nikkake_react_native](nikkake_react_native) | Expo 57, Expo Router, Zustand | サーバ／ローカル両モード |
-| Flutter | [nikkake_flutter](nikkake_flutter) | Dart, Provider | ローカルのみ（接続替え未了） |
+| Flutter | [nikkake_flutter](nikkake_flutter) | Dart, Provider | サーバ／ローカル両モード |
 | Kotlin Multiplatform | [nikkake_kmp](nikkake_kmp) | Compose Multiplatform | ローカルのみ（接続替え未了） |
 
 **言語をまたぐ約束ごとは [packages/contract](packages/contract) が唯一の正**です。
@@ -102,6 +102,12 @@ cd nikkake_react_native && EXPO_PUBLIC_BACKEND=server npm run web
 
 ```bash
 cd nikkake_flutter && flutter pub get && flutter run
+```
+
+サーバに繋ぐ場合:
+
+```bash
+cd nikkake_flutter && flutter run --dart-define=BACKEND=server
 ```
 
 ```bash

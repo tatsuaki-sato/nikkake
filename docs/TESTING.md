@@ -19,10 +19,10 @@ packages/contract/domain_cases.json   ← 期待値はここ1本
 
 | 実装 | 単体 | E2E | 合計 |
 |---|---:|---:|---:|
-| Rails API | 134 (RSpec) | — | 134 |
+| Rails API | 137 (RSpec) | — | 137 |
 | Web | — | 26 (Playwright ×2) | 26 |
 | React Native | 181 (Jest) | 84 (Playwright ×2) ×2モード | 265 |
-| Flutter | 179 (flutter test) | — | 179 |
+| Flutter | 192 (flutter test) | — | 192 |
 | KMP | 83 (kotlin.test) | — | 83 |
 
 最新の実行結果は [QA.md](QA.md) を参照。
@@ -82,7 +82,7 @@ psql -d nikkake_api_development -c "select count(*) from routine_logs;"
 
 ## 何をどこで守っているか
 
-### Rails（134 examples）
+### Rails（137 examples）
 
 | 対象 | ファイル |
 |---|---|
@@ -122,9 +122,14 @@ E2E は同じスイートを `local` と `server` の両モードで走らせま
 `e2e/startup.spec.ts` と `e2e/workout.spec.ts`。
 オフライン記録（`context.setOffline(true)` で記録 → キュー滞留 → 復帰 → 送信）を含みます。
 
-### Flutter（179）/ KMP（83）
+### Flutter（192）/ KMP（83）
 
 契約テストと、画面のシナリオテスト。
+Flutter にはサーバ実装のテストが13件あり、応答を差し替えて検証しています。
+
+**`flutter test` は HTTP を差し替えるため、実サーバとの疎通は確認できません。**
+`TestWidgetsFlutterBinding` が全リクエストに 400 を返します。
+Flutter のサーバ接続を確かめるには実機か実サーバで動かしてください。
 
 Flutter のウィジェットテストは既定の 800×600 だと画面外のウィジェットが構築されないので、
 `tester.view.physicalSize` を広げています。

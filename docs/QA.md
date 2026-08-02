@@ -17,7 +17,7 @@ PostgreSQL 16.14, Node 22, Flutter 3.44.6 (Dart 3.12.2), JDK 17.0.19
 
 | 項目 | コマンド | 結果 |
 |---|---|---|
-| 全テスト | `bundle exec rspec` | ✅ **134 examples, 0 failures** |
+| 全テスト | `bundle exec rspec` | ✅ **137 examples, 0 failures** |
 
 ### Web (PC/SP)
 
@@ -43,7 +43,11 @@ PostgreSQL 16.14, Node 22, Flutter 3.44.6 (Dart 3.12.2), JDK 17.0.19
 | 項目 | コマンド | 結果 |
 |---|---|---|
 | 静的解析 | `flutter analyze` | ✅ No issues found |
-| 単体＋シナリオ | `flutter test` | ✅ **179 passed** |
+| 単体＋シナリオ | `flutter test` | ✅ **192 passed** |
+
+サーバ実装は応答を差し替えたテストで検証しています（13件）。
+**`flutter test` は HTTP を差し替えるため、実サーバとの疎通は確認できません。**
+Flutter の実通信は未検証です。
 
 ### Kotlin Multiplatform
 
@@ -51,7 +55,7 @@ PostgreSQL 16.14, Node 22, Flutter 3.44.6 (Dart 3.12.2), JDK 17.0.19
 |---|---|---|
 | 単体テスト（desktop） | `./gradlew :shared:desktopTest` | ✅ **83 passed** / 0 failures |
 
-**合計 687 テスト、全てグリーン。**
+**合計 703 テスト、全てグリーン。**
 
 ### この回で見つけて直した不具合
 
@@ -59,6 +63,7 @@ PostgreSQL 16.14, Node 22, Flutter 3.44.6 (Dart 3.12.2), JDK 17.0.19
 
 | 内容 | 影響 |
 |---|---|
+| Dart の `DateTime.timeZoneName` が `Asia/Tokyo` ではなく `JST` を返す | `users.time_zone` に解決できない値が保存されていた。IANA名を取るようにし、サーバ側でも既定へ寄せるようにした |
 | 「前回: …」の重量が Ruby では `50.0×10`、TypeScript では `50×10` | Web と RN で表示文言が食い違う。契約に11ケース足して4言語で検証するようにした |
 | 初期ルーティンのIDが全端末で同じ固定UUID | サーバでは主キー衝突で**2人目以降の初期ルーティンが黙って消える**。RN / Flutter / KMP の3つとも該当 |
 | `createAnonymousAccount` が初期ルーティンを作らなかった | Web の新規ユーザーがホーム空。「起動したらすぐルーティン」の絶対条件に違反 |
@@ -87,7 +92,8 @@ PostgreSQL 16.14, Node 22, Flutter 3.44.6 (Dart 3.12.2), JDK 17.0.19
 |---|---|---|
 | iOS実機 / シミュレータ | ❌ 未実施 | コンパイルは通るが、実機での描画・操作は未確認 |
 | Android実機 / エミュレータ | ❌ 未実施 | 同上 |
-| **Flutter / KMP のサーバ接続** | ❌ 未着手 | 両方ともローカル実装のまま。GraphQL への接続替えが残っている |
+| **KMP のサーバ接続** | ❌ 未着手 | ローカル実装のまま。GraphQL への接続替えが残っている |
+| **Flutter の実サーバ疎通** | ❌ 未検証 | 実装済みだが `flutter test` が HTTP を差し替えるため、実機/実サーバでの確認が要る |
 | `docker-compose.yml` の動作 | ❌ 未検証 | この環境に Docker が入っていない。ローカルの Postgres と `bin/rails s` で確認した |
 | 本番へのデプロイ | ❌ 未実施 | ホスティング先未定（Render 無料枠 + Supabase の Postgres を想定） |
 | メール登録・サインインの実通信 | ⚠️ 一部 | RSpec では通っているが、実際のメール送信基盤が未選定 |
@@ -110,6 +116,7 @@ PostgreSQL 16.14, Node 22, Flutter 3.44.6 (Dart 3.12.2), JDK 17.0.19
 - [ ] `cd nikkake_api && bundle exec rake graphql:verify`
 - [ ] `cd nikkake_react_native && npm run verify`
 - [ ] `cd nikkake_react_native && EXPO_PUBLIC_BACKEND=server npx playwright test`
+- [ ] `cd nikkake_flutter && flutter run --dart-define=BACKEND=server`（実機/実サーバで手動確認）
 - [ ] `cd nikkake_web && npx playwright test`
 - [ ] `cd nikkake_flutter && flutter analyze && flutter test`
 - [ ] `cd nikkake_kmp && ./gradlew :shared:desktopTest`
