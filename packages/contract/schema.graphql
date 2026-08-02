@@ -345,6 +345,13 @@ type Mutation {
 input CreateAnonymousAccountInput {
   timeZone: String!
   deviceLabel: String
+  """
+  初期ルーティン「いつものルーティン」をサーバ側で作るか。
+  Web はローカルシードを持たないので true（既定）。
+  ネイティブは端末側でシードしてから importSnapshot するので false を渡す
+  （両方で作ると同じルーティンが2つできる）。
+  """
+  withStarterRoutine: Boolean = true
   clientMutationId: String
 }
 

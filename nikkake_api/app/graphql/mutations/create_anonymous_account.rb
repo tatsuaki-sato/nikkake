@@ -5,14 +5,19 @@ module Mutations
     graphql_name "CreateAnonymousAccount"
     argument :time_zone, String
     argument :device_label, String, required: false
+    # Web はローカルシードを持たないのでサーバ側で初期ルーティンを作る。
+    # ネイティブは端末でシードしてから importSnapshot するので false を渡す。
+    argument :with_starter_routine, Boolean, required: false, default_value: true
     argument :client_mutation_id, String, required: false
 
     field :token, String, description: "Bearer トークン。Web は httpOnly Cookie に載せる"
     field :viewer, Types::ViewerType
     field :user_errors, [ Types::UserErrorType ], null: false
 
-    def perform(time_zone:, device_label: nil)
+    def perform(time_zone:, device_label: nil, with_starter_routine: true)
       result = AccountCreator.call(time_zone: time_zone, device_label: device_label)
+      StarterRoutineBuilder.call(user: result.user) if with_starter_routine
+
       { token: result.raw_token, viewer: result.user, user_errors: [] }
     end
 

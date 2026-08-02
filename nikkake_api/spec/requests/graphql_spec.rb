@@ -79,6 +79,35 @@ RSpec.describe "GraphQL API", type: :request do
       expect(payload.dig("viewer", "email")).to be_nil
       expect(payload["userErrors"]).to be_empty
     end
+
+    it "作った直後から今日やるルーティンが1件ある（起動直後に1タップで始められる）" do
+      create = <<~GQL
+        mutation { createAnonymousAccount(timeZone: "Asia/Tokyo") { token } }
+      GQL
+      token = post_graphql(create).dig("data", "createAnonymousAccount", "token")
+
+      home = post_graphql(HOME_QUERY, variables: { today: "2026-08-05" }, token: token).dig("data", "home")
+
+      expect(home["due"].size).to eq(1)
+      expect(home.dig("due", 0, "routine", "name")).to eq("いつものルーティン")
+
+      # 種目まで揃っていること（1タップで開始できる条件）
+      routine_id = home.dig("due", 0, "routine", "id")
+      session = post_graphql(SESSION_QUERY, variables: { rid: routine_id }, token: token)
+      expect(session.dig("data", "workoutSession", "exercises").size).to eq(4)
+    end
+
+    it "ネイティブ向けに初期ルーティンを作らせないこともできる" do
+      # 端末側でシードしてから importSnapshot する経路。両方で作ると2つできる
+      create = <<~GQL
+        mutation { createAnonymousAccount(timeZone: "Asia/Tokyo", withStarterRoutine: false) { token } }
+      GQL
+      token = post_graphql(create).dig("data", "createAnonymousAccount", "token")
+
+      home = post_graphql(HOME_QUERY, variables: { today: "2026-08-05" }, token: token).dig("data", "home")
+
+      expect(home["due"]).to be_empty
+    end
   end
 
   describe "認証" do
@@ -123,18 +152,18 @@ RSpec.describe "GraphQL API", type: :request do
     end
   end
 
-  describe "ホーム" do
-    HOME_QUERY = <<~GQL
+  HOME_QUERY = <<~GQL
       query($today: Date!) {
         home(today: $today, timeZone: "Asia/Tokyo") {
           today
           streak { current longest }
-          due { routine { name } isDueToday isCompleted frequencyLabel }
+          due { routine { id name } isDueToday isCompleted frequencyLabel }
           completed { routine { name } }
         }
-      }
-    GQL
+    }
+  GQL
 
+  describe "ホーム" do
     it "起動直後に今日やるルーティンが1件返る" do
       token, = signed_up
 
@@ -263,16 +292,16 @@ RSpec.describe "GraphQL API", type: :request do
     end
   end
 
-  describe "ワークアウトセッション" do
-    SESSION_QUERY = <<~GQL
+  SESSION_QUERY = <<~GQL
       query($rid: ID!) {
         workoutSession(routineId: $rid) {
           routine { name }
           exercises { exercise { name } previousLabel restSec targetDurationSec }
         }
-      }
-    GQL
+    }
+  GQL
 
+  describe "ワークアウトセッション" do
     it "前回の記録が previousLabel として返る" do
       token, user = signed_up
       routine = user.routines.kept.first

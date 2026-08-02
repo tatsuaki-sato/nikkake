@@ -57,3 +57,9 @@ nikkake_api/log/
 nikkake_api/tmp/
 nikkake_api/config/master.key
 packages/contract/schema.generated.graphql
+
+# ---- Web / monorepo ----
+node_modules/
+nikkake_web/dist/
+nikkake_web/playwright-report/
+nikkake_web/test-results/

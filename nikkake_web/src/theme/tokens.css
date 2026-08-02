@@ -1,0 +1,154 @@
+/*
+ * 配色と余白。docs/FEATURES.md の表をそのまま写している。
+ * 4実装で見た目を揃えるため、画面側で個別に色を決めない。
+ */
+:root {
+  --bg: #0F0F14;
+  --surface: #1A1A24;
+  --surface-elevated: #24243A;
+  --primary: #6C5CE7;
+  --primary-light: #A29BFE;
+  --secondary: #00B894;
+  --accent: #FDCB6E;
+  --success: #55EFC4;
+  --error: #FF8A8A;
+  --text-primary: #F0F0F0;
+  --text-secondary: #A0A0B0;
+  --border: rgba(255, 255, 255, 0.1);
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 16px;
+  --sp-4: 24px;
+  --sp-5: 32px;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  --sidebar-w: 240px;
+  --content-max: 720px;
+  --breakpoint: 768px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font-family: inherit; cursor: pointer; }
+input { font-family: inherit; }
+
+/* ---- レイアウト: SP は下タブ、PC は左サイドバー ---- */
+
+.shell { display: flex; flex-direction: column; height: 100%; }
+.shell__body { flex: 1; overflow-y: auto; padding-bottom: 72px; }
+.shell__content { max-width: var(--content-max); margin: 0 auto; padding: var(--sp-3); }
+
+.tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  display: flex; background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tabbar__item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: var(--sp-2); background: none; border: none;
+  color: var(--text-secondary); font-size: 11px;
+}
+.tabbar__item[aria-current="page"] { color: var(--primary-light); }
+.tabbar__icon { font-size: 20px; }
+
+@media (min-width: 768px) {
+  .shell { flex-direction: row; }
+  .shell__body { padding-bottom: 0; }
+  .shell__content { padding: var(--sp-4); }
+
+  .tabbar {
+    position: static; flex-direction: column; width: var(--sidebar-w);
+    border-top: none; border-right: 1px solid var(--border);
+    padding: var(--sp-3) var(--sp-2); gap: var(--sp-1);
+  }
+  .tabbar__item {
+    flex: 0 0 auto; flex-direction: row; justify-content: flex-start;
+    gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-sm); font-size: 14px;
+  }
+  .tabbar__item[aria-current="page"] { background: var(--surface-elevated); }
+  /* 進捗だけ2カラムに広げる */
+  .shell__content--wide { max-width: 1080px; }
+}
+
+/* ---- 部品 ---- */
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--sp-3);
+}
+.card--elevated { background: var(--surface-elevated); }
+
+.btn {
+  min-height: 48px; width: 100%; padding: 0 var(--sp-4);
+  border-radius: var(--r-sm); border: none;
+  font-size: 15px; font-weight: bold;
+  background: var(--primary); color: #fff;
+}
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn--secondary { background: var(--surface-elevated); color: var(--text-primary); border: 1px solid var(--border); }
+.btn--ghost { background: transparent; color: var(--primary-light); }
+.btn--danger { background: transparent; color: var(--error); border: 1px solid var(--error); }
+
+.chip {
+  padding: var(--sp-2) var(--sp-3); border-radius: var(--r-pill);
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-primary); font-size: 13px;
+}
+.chip[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: bold; }
+
+.stack > * + * { margin-top: var(--sp-3); }
+.row { display: flex; align-items: center; gap: var(--sp-3); }
+.muted { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.error { color: var(--error); font-size: 14px; }
+
+.section-title { font-size: 18px; font-weight: bold; margin: var(--sp-4) 0 var(--sp-3); }
+.h1 { font-size: 28px; font-weight: bold; margin: 0; }
+
+.empty { text-align: center; padding: var(--sp-5); }
+.empty__icon { font-size: 56px; }
+.empty__title { font-size: 18px; font-weight: bold; margin: var(--sp-3) 0 var(--sp-2); }
+
+.routine-card { display: flex; align-items: center; gap: var(--sp-3); width: 100%; text-align: left;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: var(--sp-3); color: var(--text-primary); margin-bottom: var(--sp-2); }
+.routine-card--muted { opacity: 0.55; }
+.routine-card__icon { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; flex: 0 0 auto; }
+.routine-card__body { flex: 1; min-width: 0; }
+.routine-card__name { font-weight: bold; font-size: 16px; }
+
+.set-row { display: grid; grid-template-columns: 48px 1fr 1fr 64px; gap: var(--sp-2); align-items: center;
+  padding: var(--sp-2) 0; border-top: 1px solid var(--border); }
+.set-row--done { background: var(--surface-elevated); }
+.set-input { width: 100%; padding: var(--sp-2); text-align: center; font-size: 16px;
+  background: var(--bg); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.check { width: 40px; height: 36px; border-radius: var(--r-sm); background: var(--bg);
+  border: 1px solid var(--border); color: var(--bg); font-weight: bold; }
+.check[aria-checked="true"] { background: var(--success); border-color: var(--success); }
+
+.bar-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; }
+.bar-chart__col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.bar-chart__bar { width: 80%; border-radius: 2px; background: var(--border); }
+.bar-chart__bar--on { background: var(--success); }
+.bar-chart__label { font-size: 9px; color: var(--text-secondary); margin-top: var(--sp-1); }
+
+.calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.calendar__cell { aspect-ratio: 1; display: grid; place-items: center; font-size: 12px;
+  color: var(--text-secondary); border-radius: var(--r-sm); }
+.calendar__cell--done { background: var(--success); color: var(--bg); font-weight: bold; }
+.calendar__cell--today { outline: 1px solid var(--primary-light); }

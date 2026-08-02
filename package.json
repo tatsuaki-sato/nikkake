@@ -1,0 +1,19 @@
+{
+  "name": "nikkake",
+  "private": true,
+  "description": "毎日の日課を習慣にするワークアウトアプリ。Rails API + 4クライアント",
+  "workspaces": [
+    "packages/*",
+    "nikkake_web"
+  ],
+  "scripts": {
+    "verify:contract": "npm run verify --workspace @nikkake/contract",
+    "web:dev": "npm run dev --workspace nikkake_web",
+    "web:build": "npm run build --workspace nikkake_web",
+    "web:test": "npm run test --workspace nikkake_web",
+    "web:e2e": "npm run test:e2e --workspace nikkake_web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
