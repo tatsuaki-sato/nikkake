@@ -176,7 +176,11 @@ data class TodayRoutine(
     val routine: RoutineWithExercises,
     val isCompleted: Boolean,
     val isDueToday: Boolean,
-    val lastLog: RoutineLog?,
+    /**
+     * 「毎日」「3日ごと」。サーバが返す文言をそのまま出す。
+     * クライアントで組み立てると4実装で表記が割れる
+     */
+    val frequencyLabel: String = "",
 )
 
 data class WorkoutSet(
@@ -235,10 +239,10 @@ data class ExerciseProgressPoint(
 )
 
 data class OverallStats(
-    val totalWorkouts: Int,
-    val totalDurationSec: Int,
-    val totalSets: Int,
-    val thisWeekCount: Int,
+    val totalWorkouts: Int = 0,
+    val totalDurationSec: Int = 0,
+    val totalSets: Int = 0,
+    val thisWeekCount: Int = 0,
 )
 
 // ============================================

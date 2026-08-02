@@ -3,80 +3,116 @@ package com.myapplication.common.store
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.myapplication.common.data.DataCounts
 import com.myapplication.common.data.Exercise
-import com.myapplication.common.data.ExerciseLog
-import com.myapplication.common.data.Repository
+import com.myapplication.common.data.ExerciseProgressPoint
+import com.myapplication.common.data.HomeView
+import com.myapplication.common.data.NikkakeRepository
+import com.myapplication.common.data.ProgressView
 import com.myapplication.common.data.RoutineInput
-import com.myapplication.common.data.RoutineLog
 import com.myapplication.common.data.RoutineWithExercises
-import com.myapplication.common.data.TodayRoutine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
- * ルーティンとログの読み取り状態をまとめて持つ。
+ * 画面が読む状態をまとめて持つ。
  *
- * 参照はすべてローカルストレージなので取得コストが安い。
- * キャッシュを細かく持つより、変更のたびに再読込する方が
- * 画面間の不整合が出ずに単純になる。
+ * 保持しているのは**サーバが組み立てた集計済みビュー**で、生のログは持たない。
+ * 画面側で集計し直すと、サーバと基準がずれても誰も気づけないため。
+ *
+ * リポジトリは suspend だが、公開する関数は非 suspend にして中で launch する。
+ * こうしないと Compose の各コールバックに毎回スコープを引き回すことになり、
+ * 画面側が「どこで待つか」を意識させられる。
  */
-class AppStore(val repository: Repository) {
+class AppStore(
+    val repository: NikkakeRepository,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main),
+) {
 
+    var home by mutableStateOf(HomeView())
+        private set
+    var progress by mutableStateOf(ProgressView())
+        private set
     var routines by mutableStateOf<List<RoutineWithExercises>>(emptyList())
         private set
-    var todayRoutines by mutableStateOf<List<TodayRoutine>>(emptyList())
-        private set
-    var routineLogs by mutableStateOf<List<RoutineLog>>(emptyList())
-        private set
-    var exerciseLogs by mutableStateOf<List<ExerciseLog>>(emptyList())
-        private set
     var exercises by mutableStateOf<List<Exercise>>(emptyList())
+        private set
+    var counts by mutableStateOf(DataCounts())
+        private set
+    var progressRangeDays by mutableStateOf(7)
         private set
     var loaded by mutableStateOf(false)
         private set
 
     /**
      * 初回起動時のシード投入を含む立ち上げ。
-     * これが終わればサインインの有無に関係なくアプリは完全に使える。
+     * ネットワークを使わないので必ず終わる。
+     * サーバへの登録はここでは待たない（docs/ARCHITECTURE.md の遅延登録）。
      */
     fun bootstrap() {
-        repository.seedIfNeeded()
-        refresh()
+        scope.launch {
+            repository.seedIfNeeded()
+            reload()
+        }
     }
 
     fun refresh() {
+        scope.launch { reload() }
+    }
+
+    private suspend fun reload() {
+        home = repository.getHome()
+        progress = repository.getProgress(rangeDays = progressRangeDays)
         routines = repository.listRoutinesWithExercises()
-        todayRoutines = repository.getTodayRoutines()
-        routineLogs = repository.listRoutineLogs()
-        exerciseLogs = repository.listExerciseLogs()
         exercises = repository.listExercises()
+        counts = repository.getCounts()
         loaded = true
     }
+
+    fun setProgressRange(days: Int) {
+        if (progressRangeDays == days) return
+        progressRangeDays = days
+        scope.launch { progress = repository.getProgress(rangeDays = days) }
+    }
+
+    suspend fun exerciseProgress(exerciseId: String): List<ExerciseProgressPoint> =
+        repository.getExerciseProgressPoints(exerciseId)
 
     fun findRoutine(id: String): RoutineWithExercises? = routines.firstOrNull { it.id == id }
 
     fun createRoutine(input: RoutineInput) {
-        repository.createRoutine(input)
-        refresh()
+        scope.launch {
+            repository.createRoutine(input)
+            reload()
+        }
     }
 
     fun updateRoutine(id: String, input: RoutineInput) {
-        repository.updateRoutine(id, input)
-        refresh()
+        scope.launch {
+            repository.updateRoutine(id, input)
+            reload()
+        }
     }
 
     fun deleteRoutine(id: String) {
-        repository.deleteRoutine(id)
-        refresh()
+        scope.launch {
+            repository.deleteRoutine(id)
+            reload()
+        }
     }
 
     fun setRoutineActive(id: String, isActive: Boolean) {
-        repository.setRoutineActive(id, isActive)
-        refresh()
+        scope.launch {
+            repository.setRoutineActive(id, isActive)
+            reload()
+        }
     }
 
     fun resetAll() {
-        repository.resetAll()
-        refresh()
+        scope.launch {
+            repository.resetAll()
+            reload()
+        }
     }
-
-    val localCounts: Map<String, Int> get() = repository.getLocalCounts()
 }

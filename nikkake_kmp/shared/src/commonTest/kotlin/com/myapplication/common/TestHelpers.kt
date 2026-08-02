@@ -17,7 +17,8 @@ import com.myapplication.common.domain.nowIso
  */
 fun createTestDb(): LocalDb = LocalDb(StorageAdapter.inMemory())
 
-fun createSeededRepository(): Repository = Repository(createTestDb()).also { it.seedIfNeeded() }
+suspend fun createSeededRepository(): Repository =
+    Repository(createTestDb()).also { it.seedIfNeeded() }
 
 const val PUSH_UP_ID = "00000000-0000-4000-8000-000000000003"
 const val SQUAT_ID = "00000000-0000-4000-8000-000000000009"

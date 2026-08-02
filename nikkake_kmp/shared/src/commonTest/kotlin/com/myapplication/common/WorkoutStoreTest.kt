@@ -3,8 +3,10 @@ package com.myapplication.common
 import com.myapplication.common.data.LogStatus
 import com.myapplication.common.data.Repository
 import com.myapplication.common.data.RoutineExerciseInput
-import com.myapplication.common.data.RoutineWithExercises
+import com.myapplication.common.data.WorkoutSessionView
+import com.myapplication.common.data.WorkoutSet
 import com.myapplication.common.store.WorkoutStore
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -15,7 +17,7 @@ import kotlin.test.assertTrue
 class WorkoutStoreTest {
 
     /** 2種目（重量あり2セット / 自重1セット）のルーティンで統一して検証する */
-    private fun setUp(): Triple<Repository, WorkoutStore, RoutineWithExercises> {
+    private suspend fun setUp(): Triple<Repository, WorkoutStore, WorkoutSessionView> {
         val repository = createSeededRepository()
         val store = WorkoutStore(repository)
 
@@ -28,13 +30,13 @@ class WorkoutStoreTest {
             ),
         )
 
-        return Triple(repository, store, repository.getRoutineWithExercises(created.id)!!)
+        return Triple(repository, store, repository.getWorkoutSession(created.id)!!)
     }
 
     @Test
-    fun 目標値をそのままセットの初期値にする() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun 目標値をそのままセットの初期値にする() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
 
         assertEquals(2, store.exercises.size)
         assertEquals(2, store.exercises[0].sets.size)
@@ -45,19 +47,21 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 前回の記録があればそちらを初期値にする() {
-        val (_, store, routine) = setUp()
-        val exerciseId = routine.exercises.first().exercise.id
-
-        store.start(
-            routine,
-            mapOf(
-                exerciseId to listOf(
-                    com.myapplication.common.data.WorkoutSet(1, reps = 12, weight = 65.0, completed = true),
-                    com.myapplication.common.data.WorkoutSet(2, reps = 11, weight = 65.0, completed = true),
+    fun 前回の記録があればそちらを初期値にする() = runTest {
+        val (_, store, session) = setUp()
+        // 前回の記録はサーバ（ローカル実装なら getWorkoutSession）が解決して渡してくる
+        val withPrevious = session.copy(
+            exercises = listOf(
+                session.exercises.first().copy(
+                    previousSets = listOf(
+                        WorkoutSet(1, reps = 12, weight = 65.0, completed = true),
+                        WorkoutSet(2, reps = 11, weight = 65.0, completed = true),
+                    ),
                 ),
-            ),
+            ) + session.exercises.drop(1),
         )
+
+        store.start(withPrevious)
 
         assertEquals(12, store.exercises[0].sets[0].reps)
         assertEquals(65.0, store.exercises[0].sets[0].weight)
@@ -65,9 +69,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun セットの値を編集できる() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun セットの値を編集できる() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
 
         store.updateSet(0, 1) { it.copy(weight = 70.0, reps = 8) }
 
@@ -76,9 +80,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 完了にするとレストタイマーが自動で走る() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun 完了にするとレストタイマーが自動で走る() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
 
         store.toggleSetComplete(0, 1)
 
@@ -88,9 +92,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 完了を取り消すとレストタイマーも止まる() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun 完了を取り消すとレストタイマーも止まる() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
 
         store.toggleSetComplete(0, 1)
         store.toggleSetComplete(0, 1)
@@ -100,9 +104,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun レストタイマーは0で自動停止しマイナスにならない() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun レストタイマーは0で自動停止しマイナスにならない() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
         store.startRestTimer(2)
 
         store.tick()
@@ -117,9 +121,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun セットを増減できる() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun セットを増減できる() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
 
         store.addSet(0)
         assertEquals(3, store.exercises[0].sets.size)
@@ -129,18 +133,18 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun セットは1本未満にはできない() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun セットは1本未満にはできない() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
 
         store.removeSet(1) // 元々1セットの種目
         assertEquals(1, store.exercises[1].sets.size)
     }
 
     @Test
-    fun 種目の移動は範囲外に出ない() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun 種目の移動は範囲外に出ない() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
 
         store.previousExercise()
         assertEquals(0, store.currentIndex)
@@ -151,9 +155,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 全セット完了ならcompletedとして保存される() {
-        val (repository, store, routine) = setUp()
-        store.start(routine)
+    fun 全セット完了ならcompletedとして保存される() = runTest {
+        val (repository, store, session) = setUp()
+        store.start(session)
 
         store.toggleSetComplete(0, 1)
         store.toggleSetComplete(0, 2)
@@ -172,9 +176,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 一部だけならpartialになる() {
-        val (repository, store, routine) = setUp()
-        store.start(routine)
+    fun 一部だけならpartialになる() = runTest {
+        val (repository, store, session) = setUp()
+        store.start(session)
         store.toggleSetComplete(0, 1)
 
         val summary = assertNotNull(store.finish())
@@ -185,9 +189,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 一つも完了していなければskippedになる() {
-        val (repository, store, routine) = setUp()
-        store.start(routine)
+    fun 一つも完了していなければskippedになる() = runTest {
+        val (repository, store, session) = setUp()
+        store.start(session)
 
         val summary = assertNotNull(store.finish())
 
@@ -196,9 +200,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 完了後は実行中の状態がクリアされサマリーが残る() {
-        val (_, store, routine) = setUp()
-        store.start(routine)
+    fun 完了後は実行中の状態がクリアされサマリーが残る() = runTest {
+        val (_, store, session) = setUp()
+        store.start(session)
         store.finish()
 
         assertFalse(store.isActive)
@@ -207,9 +211,9 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 中断すると何も保存されない() {
-        val (repository, store, routine) = setUp()
-        store.start(routine)
+    fun 中断すると何も保存されない() = runTest {
+        val (repository, store, session) = setUp()
+        store.start(session)
         store.toggleSetComplete(0, 1)
 
         store.cancel()
@@ -219,7 +223,7 @@ class WorkoutStoreTest {
     }
 
     @Test
-    fun 実行中でなければfinishはnullを返す() {
+    fun 実行中でなければfinishはnullを返す() = runTest {
         val (_, store, _) = setUp()
         assertNull(store.finish())
     }

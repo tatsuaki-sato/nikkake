@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,15 +34,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.myapplication.common.domain.addDays
-import com.myapplication.common.domain.calculateDailyStats
-import com.myapplication.common.domain.calculateExerciseProgress
-import com.myapplication.common.domain.calculateOverallStats
-import com.myapplication.common.domain.calculateStreak
-import com.myapplication.common.domain.completedDateSet
 import com.myapplication.common.domain.formatDuration
 import com.myapplication.common.domain.formatWeight
 import com.myapplication.common.domain.getDateString
 import com.myapplication.common.domain.today
+import com.myapplication.common.data.ExerciseProgressPoint
 import com.myapplication.common.store.AppStore
 import com.myapplication.common.ui.components.AppCard
 import com.myapplication.common.ui.components.EmptyState
@@ -66,10 +63,9 @@ fun ProgressScreen(appStore: AppStore) {
     var range by remember { mutableStateOf(7) }
     var selectedExerciseId by remember { mutableStateOf<String?>(null) }
 
-    val routineLogs = appStore.routineLogs
-    val exerciseLogs = appStore.exerciseLogs
+    val view = appStore.progress
 
-    if (routineLogs.isEmpty()) {
+    if (view.overall.totalWorkouts == 0) {
         Box(Modifier.fillMaxSize().background(palette.background), Alignment.Center) {
             EmptyState(
                 modifier = Modifier.tag("progress-empty"),
@@ -81,19 +77,23 @@ fun ProgressScreen(appStore: AppStore) {
         return
     }
 
-    val overall = calculateOverallStats(routineLogs, exerciseLogs)
-    val streak = calculateStreak(routineLogs)
-    val daily = calculateDailyStats(routineLogs, range)
-    val doneDates = completedDateSet(routineLogs)
+    // 数字はすべてサーバが集計したものを表示するだけ。
+    // ここに計算を書き足したら、それはサーバへ移すべきロジックが漏れている。
+    val overall = view.overall
+    val streak = view.streak
+    val daily = view.dailyStats
+    val doneDates = view.completedDates
 
-    // 記録が残っている種目だけを選択肢にする
-    val loggedIds = exerciseLogs.map { it.exerciseId }.toSet()
-    val loggedExercises = appStore.exercises.filter { it.id in loggedIds }
+    // 記録が残っている種目だけが返ってくる
+    val loggedExercises = view.exercisesWithLogs
 
     val activeExerciseId = selectedExerciseId ?: loggedExercises.firstOrNull()?.id
-    val progress = activeExerciseId
-        ?.let { calculateExerciseProgress(it, routineLogs, exerciseLogs) }
-        .orEmpty()
+
+    // 種目別の推移はサーバへの別クエリなので、取れたぶんだけ持っておく
+    var progress by remember { mutableStateOf(emptyList<ExerciseProgressPoint>()) }
+    LaunchedEffect(activeExerciseId) {
+        progress = activeExerciseId?.let { appStore.exerciseProgress(it) }.orEmpty()
+    }
 
     val maxCount = maxOf(1, daily.maxOfOrNull { it.completedCount } ?: 1)
 
@@ -128,7 +128,7 @@ fun ProgressScreen(appStore: AppStore) {
                         SelectableChip(
                             label = "${value}日",
                             selected = range == value,
-                            onClick = { range = value },
+                            onClick = { range = value; appStore.setProgressRange(value) },
                             modifier = Modifier.tag("progress-range-$value"),
                         )
                     }

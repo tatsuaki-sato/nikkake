@@ -24,9 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.myapplication.common.data.StreakInfo
 import com.myapplication.common.data.TodayRoutine
-import com.myapplication.common.domain.calculateStreak
 import com.myapplication.common.domain.currentHour
-import com.myapplication.common.domain.formatFrequency
 import com.myapplication.common.domain.greetingForHour
 import com.myapplication.common.domain.today
 import com.myapplication.common.store.AppStore
@@ -48,12 +46,14 @@ import com.myapplication.common.ui.theme.hexToColor
 @Composable
 fun HomeScreen(appStore: AppStore, navigation: Navigation) {
     val palette = LocalPalette.current
-    val streak = calculateStreak(appStore.routineLogs)
 
-    val todayRoutines = appStore.todayRoutines
-    val due = todayRoutines.filter { it.isDueToday && !it.isCompleted }
-    val later = todayRoutines.filter { !it.isDueToday && !it.isCompleted }
-    val done = todayRoutines.filter { it.isCompleted }
+    // 区分（今日やる / 予定なし / 完了）も連続記録もサーバが決める。
+    // ここで振り分け直すと、サーバと基準がずれても誰も気づけない。
+    val home = appStore.home
+    val streak = home.streak
+    val due = home.due
+    val later = home.notScheduled
+    val done = home.completed
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(palette.background).tag("home-screen"),
@@ -87,7 +87,7 @@ fun HomeScreen(appStore: AppStore, navigation: Navigation) {
             Spacer(Modifier.height(Spacing.md))
         }
 
-        if (todayRoutines.isEmpty()) {
+        if (home.total == 0) {
             item {
                 Box(Modifier.tag("home-empty")) {
                     EmptyState(
@@ -210,7 +210,7 @@ private fun RoutineCard(item: TodayRoutine, state: CardState, onClick: () -> Uni
                     )
                     Text(
                         if (state == CardState.DONE) "今日は完了しました"
-                        else "${formatFrequency(routine)} ・ ${item.routine.exercises.size}種目",
+                        else "${item.frequencyLabel} ・ ${item.routine.exercises.size}種目",
                         fontSize = 12.sp,
                         color = palette.textSecondary,
                     )

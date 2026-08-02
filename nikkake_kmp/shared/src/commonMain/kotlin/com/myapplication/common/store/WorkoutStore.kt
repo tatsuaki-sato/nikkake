@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 import com.myapplication.common.constants.DEFAULT_REST_SEC
 import com.myapplication.common.data.LogStatus
 import com.myapplication.common.data.Repository
-import com.myapplication.common.data.RoutineWithExercises
+import com.myapplication.common.data.WorkoutSessionView
 import com.myapplication.common.data.SaveWorkoutExercise
 import com.myapplication.common.data.WorkoutExerciseState
 import com.myapplication.common.data.WorkoutSet
@@ -50,9 +50,13 @@ class WorkoutStore(private val repository: Repository) {
     val totalSetCount: Int get() = exercises.sumOf { it.sets.size }
     val progress: Float get() = if (totalSetCount == 0) 0f else completedSetCount.toFloat() / totalSetCount
 
-    fun start(routine: RoutineWithExercises, lastSets: Map<String, List<WorkoutSet>> = emptyMap()) {
-        routineId = routine.id
-        routineName = routine.name
+    /**
+     * 実行を開始する。
+     * 「前回の記録」はセッションに解決済みで入っているので、ここで過去ログを漁らない。
+     */
+    fun start(session: WorkoutSessionView) {
+        routineId = session.routine.id
+        routineName = session.routine.name
         currentIndex = 0
         startedAtInstant = Clock.System.now()
         startedOn = today()
@@ -61,28 +65,27 @@ class WorkoutStore(private val repository: Repository) {
         isRestActive = false
         lastSummary = null
 
-        exercises = routine.exercises.map { entry ->
-            val link = entry.link
-            val previousSets = lastSets[link.exerciseId].orEmpty()
-            val setCount = maxOf(1, link.targetSets)
+        exercises = session.exercises.map { entry ->
+            val previousSets = entry.previousSets
+            val setCount = maxOf(1, entry.targetSets)
 
             WorkoutExerciseState(
-                routineExerciseId = link.id,
+                routineExerciseId = entry.routineExerciseId,
                 exercise = entry.exercise,
                 targetSets = setCount,
-                targetReps = link.targetReps,
-                targetWeight = link.targetWeight,
-                targetDurationSec = link.targetDurationSec,
-                restSec = link.restSec ?: DEFAULT_REST_SEC,
+                targetReps = entry.targetReps,
+                targetWeight = entry.targetWeight,
+                targetDurationSec = entry.targetDurationSec,
+                restSec = entry.restSec,
                 previousSets = previousSets,
                 // 前回の記録があればそれを初期値にする。前回と同じ重量から始めることが多いため。
                 sets = (1..setCount).map { number ->
                     val previous = previousSets.firstOrNull { it.setNumber == number }
                     WorkoutSet(
                         setNumber = number,
-                        reps = previous?.reps ?: link.targetReps,
-                        weight = previous?.weight ?: link.targetWeight,
-                        durationSec = previous?.durationSec ?: link.targetDurationSec,
+                        reps = previous?.reps ?: entry.targetReps,
+                        weight = previous?.weight ?: entry.targetWeight,
+                        durationSec = previous?.durationSec ?: entry.targetDurationSec,
                     )
                 },
             )
@@ -171,7 +174,13 @@ class WorkoutStore(private val repository: Repository) {
         isRestActive = false
     }
 
-    fun finish(): WorkoutSummary? {
+    /**
+     * 記録を確定する。
+     *
+     * suspend なのはサーバへ送るため。圏外ならリポジトリ側でキューに積まれ、
+     * 画面には暫定のサマリーが返るので、ここで待っても止まらない。
+     */
+    suspend fun finish(): WorkoutSummary? {
         val id = routineId ?: return null
         val startedAt = startedAtInstant ?: return null
 
@@ -181,19 +190,14 @@ class WorkoutStore(private val repository: Repository) {
             e.sets.filter { it.completed }.sumOf { (it.weight ?: 0.0) * (it.reps ?: 0) }
         }
 
-        val status = when {
-            completed == 0 -> LogStatus.SKIPPED
-            completed >= total -> LogStatus.COMPLETED
-            else -> LogStatus.PARTIAL
-        }
         val durationSec = (Clock.System.now() - startedAt).inWholeSeconds.toInt()
 
-        val log = repository.saveWorkout(
+        // セット数の集計も status の判定もリポジトリが行う。
+        // ここで決めるとサーバの判定基準とずれたときに気づけない。
+        val saved = repository.saveWorkout(
             routineId = id,
             startedAt = startedAt.toString(),
-            startedOn = startedOn,
             durationSec = durationSec,
-            status = status,
             exercises = exercises.map {
                 SaveWorkoutExercise(
                     routineExerciseId = it.routineExerciseId,
@@ -203,15 +207,9 @@ class WorkoutStore(private val repository: Repository) {
             },
         )
 
-        val summary = WorkoutSummary(
-            routineLogId = log.id,
-            routineName = routineName,
-            durationSec = durationSec,
-            completedSets = completed,
-            totalSets = total,
-            totalVolume = volume,
-            status = status,
-        )
+        // ルーティン名だけは手元のほうが確実。
+        // オフラインで記録したときサーバは名前を返せない
+        val summary = saved.copy(routineName = routineName)
 
         clear()
         lastSummary = summary

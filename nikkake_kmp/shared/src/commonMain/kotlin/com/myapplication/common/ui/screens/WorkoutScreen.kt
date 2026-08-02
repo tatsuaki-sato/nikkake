@@ -24,6 +24,8 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.myapplication.common.domain.formatDuration
+import com.myapplication.common.data.WorkoutSessionView
 import com.myapplication.common.store.AppStore
 import com.myapplication.common.store.WorkoutStore
 import com.myapplication.common.ui.Destination
@@ -65,13 +68,20 @@ fun WorkoutScreen(
     navigation: Navigation,
     routineId: String,
 ) {
+    // finish() はサーバへ送るので suspend。ここで待つためのスコープ
+    val scope = rememberCoroutineScope()
     val palette = LocalPalette.current
     var confirmCancel by remember { mutableStateOf(false) }
-    val routine = remember(routineId) { appStore.findRoutine(routineId) }
+    // 種目・目標値・前回の記録がまとめて1本で返る
+    var notFound by remember(routineId) { mutableStateOf(false) }
 
     LaunchedEffect(routineId) {
-        if (routine != null && routine.exercises.isNotEmpty()) {
-            workoutStore.start(routine, appStore.repository.getLastSetsByExercise(routineId))
+        val loaded = runCatching { appStore.repository.getWorkoutSession(routineId) }.getOrNull()
+
+        if (loaded == null || loaded.exercises.isEmpty()) {
+            notFound = true
+        } else {
+            workoutStore.start(loaded)
         }
     }
 
@@ -83,7 +93,7 @@ fun WorkoutScreen(
         }
     }
 
-    if (routine == null || routine.exercises.isEmpty()) {
+    if (notFound) {
         Box(Modifier.fillMaxSize().background(palette.background), Alignment.Center) {
             EmptyState(
                 modifier = Modifier.tag("workout-not-found"),
@@ -132,9 +142,11 @@ fun WorkoutScreen(
                 label = "完了",
                 modifier = Modifier.width(96.dp).tag("workout-finish"),
                 onClick = {
-                    if (workoutStore.finish() != null) {
-                        appStore.refresh()
-                        navigation.replace(Destination.WorkoutSummary)
+                    scope.launch {
+                        if (workoutStore.finish() != null) {
+                            appStore.refresh()
+                            navigation.replace(Destination.WorkoutSummary)
+                        }
                     }
                 },
             )

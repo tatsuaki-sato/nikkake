@@ -55,7 +55,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Navigation) {
     val palette = LocalPalette.current
     val scope = rememberCoroutineScope()
-    val counts = appStore.localCounts
+    val counts = appStore.counts
     val mode = authStore?.mode ?: StorageMode.LOCAL
 
     var confirmSignOut by remember { mutableStateOf(false) }
@@ -76,7 +76,7 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
                             Spacer(Modifier.size(Spacing.md))
                             Column {
                                 Text(
-                                    "この端末にだけ保存中",
+                                    "この端末専用の記録です",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = palette.textPrimary,
@@ -171,10 +171,10 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
             SectionTitle("保存されているデータ")
             AppCard(modifier = Modifier.tag("settings-counts")) {
                 Column {
-                    LabeledRow("ルーティン", "${counts[Collections.ROUTINES] ?: 0}", "count-routines")
-                    LabeledRow("種目", "${counts[Collections.EXERCISES] ?: 0}", "count-exercises")
-                    LabeledRow("ワークアウト記録", "${counts[Collections.ROUTINE_LOGS] ?: 0}", "count-logs")
-                    LabeledRow("セット記録", "${counts[Collections.EXERCISE_LOGS] ?: 0}", "count-sets")
+                    LabeledRow("ルーティン", "${counts.routines}", "count-routines")
+                    LabeledRow("種目", "${counts.exercises}", "count-exercises")
+                    LabeledRow("ワークアウト記録", "${counts.routineLogs}", "count-logs")
+                    LabeledRow("セット記録", "${counts.exerciseLogs}", "count-sets")
                 }
             }
 

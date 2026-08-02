@@ -11,6 +11,7 @@ import com.myapplication.common.data.WorkoutSet
 import com.myapplication.common.domain.getDateString
 import com.myapplication.common.domain.nowIso
 import com.myapplication.common.domain.today
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -20,21 +21,19 @@ import kotlin.test.assertTrue
 
 class RepositoryTest {
 
-    private fun repo() = createSeededRepository()
+    private suspend fun repo() = createSeededRepository()
 
-    private fun saveOneWorkout(
+    // status は渡さない。完了セット数から実装が導出する
+    private suspend fun saveOneWorkout(
         repository: Repository,
         routineId: String,
         linkId: String,
         exerciseId: String,
         sets: List<WorkoutSet>,
-        status: String = LogStatus.COMPLETED,
     ) = repository.saveWorkout(
         routineId = routineId,
         startedAt = nowIso(),
-        startedOn = today(),
         durationSec = 600,
-        status = status,
         exercises = listOf(SaveWorkoutExercise(linkId, exerciseId, sets)),
     )
 
@@ -43,7 +42,7 @@ class RepositoryTest {
     // ------------------------------------------
 
     @Test
-    fun サインインしなくても起動直後にすぐ始められるルーティンがある() {
+    fun サインインしなくても起動直後にすぐ始められるルーティンがある() = runTest {
         val routines = repo().listRoutinesWithExercises()
 
         assertEquals(1, routines.size)
@@ -52,15 +51,15 @@ class RepositoryTest {
     }
 
     @Test
-    fun プリセット種目が全件入っている() {
+    fun プリセット種目が全件入っている() = runTest {
         assertEquals(presetExercises.size, repo().listExercises().size)
     }
 
     @Test
-    fun 二回目の起動では初期ルーティンを作り直さない() {
+    fun 二回目の起動では初期ルーティンを作り直さない() = runTest {
         val repository = repo()
         repository.seedIfNeeded()
-        assertEquals(1, repository.listRoutines().size)
+        assertEquals(1, repository.listRoutinesLocal().size)
     }
 
     // ------------------------------------------
@@ -68,7 +67,7 @@ class RepositoryTest {
     // ------------------------------------------
 
     @Test
-    fun 作成すると種目の紐付けごと保存される() {
+    fun 作成すると種目の紐付けごと保存される() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput(name = "新しいメニュー"))
         val loaded = repository.getRoutineWithExercises(routine.id)
@@ -80,7 +79,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun 更新すると種目構成が丸ごと差し替わり並び順も入力どおりになる() {
+    fun 更新すると種目構成が丸ごと差し替わり並び順も入力どおりになる() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
 
@@ -103,18 +102,18 @@ class RepositoryTest {
     }
 
     @Test
-    fun 削除すると一覧から消える() {
+    fun 削除すると一覧から消える() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
 
         repository.deleteRoutine(routine.id)
 
         assertNull(repository.getRoutineWithExercises(routine.id))
-        assertTrue(repository.listRoutines().none { it.id == routine.id })
+        assertTrue(repository.listRoutinesLocal().none { it.id == routine.id })
     }
 
     @Test
-    fun 停止したルーティンは今日の一覧に出ない() {
+    fun 停止したルーティンは今日の一覧に出ない() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
 
@@ -124,12 +123,12 @@ class RepositoryTest {
     }
 
     @Test
-    fun 作成順にsortOrderが振られる() {
+    fun 作成順にsortOrderが振られる() = runTest {
         val repository = repo()
         val first = repository.createRoutine(sampleRoutineInput(name = "1つ目"))
         val second = repository.createRoutine(sampleRoutineInput(name = "2つ目"))
 
-        val routines = repository.listRoutines()
+        val routines = repository.listRoutinesLocal()
         val a = routines.first { it.id == first.id }
         val b = routines.first { it.id == second.id }
 
@@ -137,7 +136,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun カスタム種目を追加できる() {
+    fun カスタム種目を追加できる() = runTest {
         val repository = repo()
         repository.createCustomExercise("自作トレ", ExerciseCategory.CUSTOM, "🌟")
 
@@ -150,7 +149,7 @@ class RepositoryTest {
     // ------------------------------------------
 
     @Test
-    fun 完了したセットだけがログに残る() {
+    fun 完了したセットだけがログに残る() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
@@ -170,7 +169,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun 保存したワークアウトは今日のログとして引ける() {
+    fun 保存したワークアウトは今日のログとして引ける() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
@@ -183,51 +182,67 @@ class RepositoryTest {
     }
 
     @Test
-    fun 完了済みのルーティンは今日の一覧で完了扱いになる() {
+    fun 全セット完了ならcompletedになり今日の一覧でも完了扱いになる() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
 
-        saveOneWorkout(repository, routine.id, link.link.id, link.exercise.id, emptyList())
+        // status は入力せず、完了セット数から導出される
+        val summary = saveOneWorkout(
+            repository, routine.id, link.link.id, link.exercise.id,
+            listOf(
+                WorkoutSet(1, reps = 10, weight = 50.0, completed = true),
+                WorkoutSet(2, reps = 10, weight = 50.0, completed = true),
+            ),
+        )
+
+        assertEquals(LogStatus.COMPLETED, summary.status)
+        assertEquals(2, summary.completedSets)
+        assertEquals(1000.0, summary.totalVolume)
 
         val today = repository.getTodayRoutines().first { it.routine.id == routine.id }
         assertTrue(today.isCompleted)
     }
 
     @Test
-    fun 途中までの記録でも今日の分は済んだ扱いになる() {
+    fun 途中までの記録でも今日の分は済んだ扱いになる() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
 
-        saveOneWorkout(
+        // 一部だけ完了 → partial（status は実装が導出する）
+        val summary = saveOneWorkout(
             repository, routine.id, link.link.id, link.exercise.id,
-            listOf(WorkoutSet(1, reps = 10, weight = 50.0, completed = true)),
-            status = LogStatus.PARTIAL,
+            listOf(
+                WorkoutSet(1, reps = 10, weight = 50.0, completed = true),
+                WorkoutSet(2, reps = 10, weight = 50.0, completed = false),
+            ),
         )
+        assertEquals(LogStatus.PARTIAL, summary.status)
 
         val today = repository.getTodayRoutines().first { it.routine.id == routine.id }
         assertTrue(today.isCompleted)
     }
 
     @Test
-    fun 中断した記録だけなら今日の分は未実施のまま() {
+    fun 中断した記録だけなら今日の分は未実施のまま() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
 
-        saveOneWorkout(
+        // 完了セット0 → skipped（status は実装が導出する）
+        val summary = saveOneWorkout(
             repository, routine.id, link.link.id, link.exercise.id,
-            emptyList(),
-            status = LogStatus.SKIPPED,
+            listOf(WorkoutSet(1, reps = 10, weight = 50.0, completed = false)),
         )
+        assertEquals(LogStatus.SKIPPED, summary.status)
 
         val today = repository.getTodayRoutines().first { it.routine.id == routine.id }
         assertFalse(today.isCompleted)
     }
 
     @Test
-    fun 前回の記録を種目ごとに引ける() {
+    fun 前回の記録を種目ごとに引ける() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
@@ -249,7 +264,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun ルーティンを編集しても過去のセット記録は残る() {
+    fun ルーティンを編集しても過去のセット記録は残る() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
@@ -268,7 +283,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun ログを削除するとセット記録も一緒に消える() {
+    fun ログを削除するとセット記録も一緒に消える() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
@@ -279,21 +294,21 @@ class RepositoryTest {
         )
         assertEquals(1, repository.listExerciseLogs().size)
 
-        repository.deleteRoutineLog(log.id)
+        repository.deleteRoutineLog(log.routineLogId)
 
         assertTrue(repository.listExerciseLogs().isEmpty())
         assertTrue(repository.listRoutineLogs().isEmpty())
     }
 
     @Test
-    fun 初期化するとデータが消えて初期状態に戻る() {
+    fun 初期化するとデータが消えて初期状態に戻る() = runTest {
         val repository = repo()
         repository.createRoutine(sampleRoutineInput(name = "消えるルーティン"))
-        assertEquals(2, repository.listRoutines().size)
+        assertEquals(2, repository.listRoutinesLocal().size)
 
         repository.resetAll()
 
-        val routines = repository.listRoutines()
+        val routines = repository.listRoutinesLocal()
         assertEquals(1, routines.size)
         assertEquals(STARTER_ROUTINE_NAME, routines.first().name)
     }

@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.myapplication.common.data.LogStatus
-import com.myapplication.common.domain.calculateStreak
 import com.myapplication.common.domain.formatDuration
 import com.myapplication.common.store.AppStore
 import com.myapplication.common.store.WorkoutStore
@@ -41,7 +40,7 @@ import kotlin.math.roundToInt
 fun WorkoutSummaryScreen(appStore: AppStore, workoutStore: WorkoutStore, navigation: Navigation) {
     val palette = LocalPalette.current
     val summary = workoutStore.lastSummary
-    val streak = calculateStreak(appStore.routineLogs)
+    val streak = appStore.home.streak
 
     val goHome = {
         workoutStore.clearSummary()
