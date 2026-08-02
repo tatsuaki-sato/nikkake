@@ -24,8 +24,9 @@ class LocalMeta {
   /// 同期先アカウント。別アカウントでサインインしたらカーソルを捨てる
   final String? syncUserId;
 
-  /// サーバが発行した匿名トークン。生の値はここにしか無い
-  final String? apiToken;
+  /// サーバが発行したトークン。生の値はここにしか無い。
+  /// サインアウトで空文字を入れるので、読むときは空を null と同じに扱う
+  final String? _apiToken;
 
   /// 端末のデータをサーバへ預けた日時。
   /// 一度入ったら二度と送らない。繰り返すとサーバで消したルーティンが復活する
@@ -42,11 +43,13 @@ class LocalMeta {
     this.seeded = false,
     this.lastSyncedAt,
     this.syncUserId,
-    this.apiToken,
+    this._apiToken,
     this.snapshotImportedAt,
     this.offlineQueue,
     this.offlineQueueDead,
   });
+
+  String? get apiToken => (_apiToken == null || _apiToken.isEmpty) ? null : _apiToken;
 
   factory LocalMeta.fromJson(Map<String, dynamic> json) => LocalMeta(
         schemaVersion: (json['schemaVersion'] as num?)?.toInt() ?? LocalDb.currentSchemaVersion,
@@ -65,7 +68,7 @@ class LocalMeta {
         'seeded': seeded,
         'lastSyncedAt': lastSyncedAt?.toIso8601String(),
         'syncUserId': syncUserId,
-        'apiToken': apiToken,
+        'apiToken': _apiToken,
         'snapshotImportedAt': snapshotImportedAt,
         'offlineQueue': offlineQueue,
         'offlineQueueDead': offlineQueueDead,

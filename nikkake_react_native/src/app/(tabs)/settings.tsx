@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../constants/colors';
-import { useAuthStore } from '../../stores/authStore';
-import { getCounts, pendingCount as getPendingCount, resetData } from '../../lib/repository';
+import { useSessionStore } from '../../stores/sessionStore';
+import { getCounts, resetData } from '../../lib/repository';
 import { Button, Card, Divider, SectionTitle, Spacing, Radius } from '../../components/ui';
 
 /**
@@ -17,14 +17,18 @@ import { Button, Card, Divider, SectionTitle, Spacing, Radius } from '../../comp
 export default function SettingsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user, mode, sync, signOut, syncNow } = useAuthStore();
+  const { viewer, mode, pending, lastError, signOut, flushNow, refresh } = useSessionStore();
 
   const countsQuery = useQuery({ queryKey: ['counts'], queryFn: getCounts });
-  const pendingQuery = useQuery({
-    queryKey: ['pendingCount', sync.lastSyncedAt],
-    queryFn: getPendingCount,
-    enabled: mode === 'cloud',
-  });
+
+  // ワークアウトを記録してから戻ってきたときに件数を合わせる。
+  // 取り直さないと、記録したのに0件のままに見える
+  useFocusEffect(
+    React.useCallback(() => {
+      void countsQuery.refetch();
+      void refresh();
+    }, [])
+  );
 
   const counts = countsQuery.data ?? {
     routines: 0,
@@ -36,10 +40,13 @@ export default function SettingsScreen() {
   const handleSignOut = () => {
     const doSignOut = async () => {
       await signOut();
+      await refresh();
       await queryClient.invalidateQueries();
     };
 
-    const message = 'サインアウトしても、この端末の記録は消えません。クラウドへのバックアップが止まるだけです。';
+    const message =
+      'サインアウトしても記録は消えません。この端末から見えなくなるだけで、'
+      + '同じアカウントでサインインし直せば戻ります。';
 
     if (Platform.OS === 'web') {
       // eslint-disable-next-line no-alert
@@ -57,10 +64,11 @@ export default function SettingsScreen() {
   const handleReset = () => {
     const doReset = async () => {
       await resetData();
+      await refresh();
       await queryClient.invalidateQueries();
     };
 
-    const message = 'この端末のルーティンと記録をすべて削除して、初期状態に戻します。取り消せません。';
+    const message = 'ルーティンと記録をすべて削除して、初期状態に戻します。サーバ側も消えます。取り消せません。';
 
     if (Platform.OS === 'web') {
       // eslint-disable-next-line no-alert
@@ -75,19 +83,11 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const syncLabel = () => {
-    switch (sync.status) {
-      case 'syncing':
-        return '同期中…';
-      case 'offline':
-        return 'オフラインのため未同期';
-      case 'error':
-        return `同期に失敗: ${sync.lastError ?? '不明なエラー'}`;
-      default:
-        return sync.lastSyncedAt
-          ? `最終同期 ${new Date(sync.lastSyncedAt).toLocaleString('ja-JP')}`
-          : 'まだ同期していません';
-    }
+  // 「同期」はもう無い。記録がサーバへ送れているかだけを見せる
+  const pendingLabel = () => {
+    if (lastError) return `送信に失敗しました: ${lastError}`;
+    if (pending > 0) return `未送信の記録: ${pending} 件`;
+    return 'すべて送信済みです';
   };
 
   return (
@@ -99,7 +99,7 @@ export default function SettingsScreen() {
           <View style={styles.statusRow}>
             <Text style={styles.statusIcon}>📱</Text>
             <View style={styles.statusInfo}>
-              <Text style={styles.statusTitle}>この端末にだけ保存中</Text>
+              <Text style={styles.statusTitle}>この端末専用の記録です</Text>
               <Text style={styles.statusMessage}>
                 サインインしなくても全機能が使えます。ただしアプリを削除すると記録も消えます。
               </Text>
@@ -109,8 +109,8 @@ export default function SettingsScreen() {
           <Divider />
 
           <Text style={styles.helpText}>
-            バックアップを有効にすると、機種変更やアプリの入れ直しをしても記録を引き継げます。
-            今ある記録もそのままクラウドへ引き継がれます。
+            メールアドレスを登録すると、機種変更やアプリの入れ直しをしても記録を引き継げます。
+            今ある記録はそのまま残ります（作り直しは起きません）。
           </Text>
 
           <Button
@@ -127,26 +127,26 @@ export default function SettingsScreen() {
             <View style={styles.statusInfo}>
               <Text style={styles.statusTitle}>バックアップ有効</Text>
               <Text style={styles.statusMessage} testID="settings-email">
-                {user?.email}
+                {viewer?.email}
               </Text>
             </View>
           </View>
 
           <Divider />
 
-          <Text style={[styles.helpText, sync.status === 'error' && styles.errorText]} testID="settings-sync-status">
-            {syncLabel()}
+          <Text
+            style={[styles.helpText, lastError ? styles.errorText : null]}
+            testID="settings-pending-status"
+          >
+            {pendingLabel()}
           </Text>
-          {pendingQuery.data ? (
-            <Text style={styles.helpText}>未送信の変更: {pendingQuery.data} 件</Text>
-          ) : null}
 
           <Button
-            title="今すぐ同期"
+            title="今すぐ送信"
             variant="secondary"
-            onPress={() => void syncNow()}
-            loading={sync.status === 'syncing'}
-            testID="settings-sync-now"
+            onPress={() => void flushNow()}
+            disabled={pending === 0}
+            testID="settings-flush-now"
             style={styles.actionButton}
           />
           <Button

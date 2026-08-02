@@ -63,7 +63,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (error != null) return;
 
     // メール確認が必要な設定だとこの時点ではサインインが完了していない
-    if (auth.user != null) {
+    if (auth.viewer != null) {
       Navigator.of(context).popUntil((route) => route.isFirst);
     } else {
       setState(() => _done = true);
@@ -85,7 +85,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  '確認メールを送りました',
+                  '登録が完了しました',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -94,7 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: Spacing.sm),
                 const Text(
-                  'メール内のリンクを開くとバックアップが有効になります。'
+                  'これまでの記録はそのまま残っています。'
                   'それまでも、この端末での記録はこれまで通り続けられます。',
                   style: TextStyle(fontSize: 13, height: 1.6, color: AppColors.darkTextSecondary),
                 ),

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'constants/colors.dart';
 import 'data/local_db.dart';
 import 'data/backend.dart';
-import 'data/sync_service.dart';
 import 'providers/app_state.dart';
 import 'providers/auth_controller.dart';
 import 'providers/workout_controller.dart';
@@ -93,12 +92,6 @@ class _NikkakeAppState extends State<NikkakeApp> {
       ),
     );
   }
-}
-
-/// SyncServiceを持たない環境（テスト等）でも組み立てられるようにするヘルパー
-AuthController? buildAuthController(SyncService? syncService) {
-  if (syncService == null) return null;
-  return AuthController(syncService: syncService, auth: syncService.client.auth);
 }
 
 void unawaited(Future<void>? future) {

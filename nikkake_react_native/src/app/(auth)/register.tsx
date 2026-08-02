@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { useAuthStore } from '../../stores/authStore';
+import { useSessionStore } from '../../stores/sessionStore';
 import { Button, Card, ErrorText, Label, Spacing, Radius } from '../../components/ui';
 
 /**
  * アカウント作成。
- * 既にローカルにあるルーティンと記録は、作成後の初回同期でそのまま引き継がれる。
+ *
+ * 新しいアカウントを作るのではなく、いま使っている匿名アカウントに
+ * メールとパスワードを足す。user.id が変わらないので、
+ * **これまでの記録は1件も移動しない**（引き継ぎ処理そのものが要らない）。
  */
 export default function RegisterScreen() {
   const router = useRouter();
-  const signUp = useAuthStore(s => s.signUp);
+  const signUp = useSessionStore(s => s.signUp);
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -41,24 +44,31 @@ export default function RegisterScreen() {
       return;
     }
 
-    // メール確認が必要な設定だとこの時点ではサインインが完了していない
-    if (useAuthStore.getState().user) {
-      router.dismissAll();
-    } else {
-      setDone(true);
-    }
+    // 登録はこの時点で有効。メール確認は未導入（docs/QA.md の C4）なので、
+    // 「確認メールを送りました」とは出さない。送っていないものを送ったと書かない
+    setDone(true);
   };
 
   if (done) {
     return (
       <View style={styles.container} testID="register-done">
         <Card style={styles.doneCard}>
-          <Text style={styles.doneTitle}>確認メールを送りました</Text>
+          <Text style={styles.doneTitle}>登録が完了しました</Text>
           <Text style={styles.doneText}>
-            メール内のリンクを開くとバックアップが有効になります。
-            それまでも、この端末での記録はこれまで通り続けられます。
+            これまでの記録はそのまま残っています。
+            機種変更やアプリの入れ直しをしても、このメールアドレスで元に戻せます。
           </Text>
-          <Button title="アプリに戻る" onPress={() => router.dismissAll()} style={styles.doneButton} />
+          <Button
+            title="アプリに戻る"
+            // dismissAll() は expo-router の Web 実装だとサインイン画面に留まる。
+            // 登録 → サインイン → タブ の2枚を確実に戻す
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              if (router.canGoBack()) router.back();
+            }}
+            testID="register-back"
+            style={styles.doneButton}
+          />
         </Card>
       </View>
     );

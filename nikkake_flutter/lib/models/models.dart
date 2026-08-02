@@ -574,3 +574,32 @@ class SyncState {
 
   const SyncState({this.status = SyncStatus.idle, this.lastSyncedAt, this.lastError});
 }
+
+/// サーバから見た「いまのアカウント」。
+///
+/// isAnonymous が true なら、記録を取り戻す手段がこの端末のトークンしか無い。
+/// メール登録すると false になるが、user.id は変わらないので記録は移動しない。
+class Viewer {
+  final String id;
+  final String? email;
+  final String? displayName;
+  final bool isAnonymous;
+  final bool emailVerified;
+
+  const Viewer({
+    required this.id,
+    this.email,
+    this.displayName,
+    this.isAnonymous = true,
+    this.emailVerified = false,
+  });
+
+  factory Viewer.fromJson(Map<String, dynamic> json) => Viewer(
+        id: json['id'] as String,
+        email: json['email'] as String?,
+        displayName: json['displayName'] as String?,
+        isAnonymous: json['isAnonymous'] as bool? ?? true,
+        emailVerified: json['emailVerified'] as bool? ?? false,
+      );
+}
+

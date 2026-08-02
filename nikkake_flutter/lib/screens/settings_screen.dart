@@ -19,7 +19,8 @@ class SettingsScreen extends StatelessWidget {
     final confirmed = await confirmAction(
       context,
       title: 'サインアウト',
-      message: 'サインアウトしても、この端末の記録は消えません。クラウドへのバックアップが止まるだけです。',
+      message: 'サインアウトしても記録は消えません。この端末から見えなくなるだけで、'
+          '同じアカウントでサインインし直せば戻ります。',
       confirmLabel: 'サインアウト',
     );
     if (!confirmed) return;
@@ -39,20 +40,11 @@ class SettingsScreen extends StatelessWidget {
     await context.read<AppState>().resetAll();
   }
 
-  String _syncLabel(SyncState sync) {
-    switch (sync.status) {
-      case SyncStatus.syncing:
-        return '同期中…';
-      case SyncStatus.offline:
-        return 'オフラインのため未同期';
-      case SyncStatus.error:
-        return '同期に失敗: ${sync.lastError ?? '不明なエラー'}';
-      case SyncStatus.idle:
-        final at = sync.lastSyncedAt?.toLocal();
-        return at == null
-            ? 'まだ同期していません'
-            : '最終同期 ${at.year}/${at.month}/${at.day} ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
-    }
+  // 「同期」はもう無い。記録がサーバへ送れているかだけを見せる
+  String _pendingLabel(AuthController auth) {
+    if (auth.lastError != null) return '送信に失敗しました: ${auth.lastError}';
+    if (auth.pendingCount > 0) return '未送信の記録: ${auth.pendingCount} 件';
+    return 'すべて送信済みです';
   }
 
   @override
@@ -86,7 +78,7 @@ class SettingsScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'この端末にだけ保存中',
+                            'この端末専用の記録です',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -109,8 +101,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(color: AppColors.darkBorder, height: Spacing.lg),
                 const Text(
-                  'バックアップを有効にすると、機種変更やアプリの入れ直しをしても記録を引き継げます。'
-                  '今ある記録もそのままクラウドへ引き継がれます。',
+                  'メールアドレスを登録すると、機種変更やアプリの入れ直しをしても記録を引き継げます。'
+                  '今ある記録はそのまま残ります（作り直しは起きません）。',
                   style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.darkTextSecondary),
                 ),
                 const SizedBox(height: Spacing.md),
@@ -149,7 +141,7 @@ class SettingsScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: Spacing.xs),
                           Text(
-                            auth.user?.email ?? '',
+                            auth.viewer?.email ?? '',
                             key: const Key('settings-email'),
                             style: const TextStyle(
                               fontSize: 13,
@@ -163,27 +155,21 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const Divider(color: AppColors.darkBorder, height: Spacing.lg),
                 Text(
-                  _syncLabel(auth.sync),
-                  key: const Key('settings-sync-status'),
+                  _pendingLabel(auth),
+                  key: const Key('settings-pending-status'),
                   style: TextStyle(
                     fontSize: 13,
-                    color: auth.sync.status == SyncStatus.error
+                    color: auth.lastError != null
                         ? AppColors.darkError
                         : AppColors.darkTextSecondary,
                   ),
                 ),
-                if (auth.pendingCount > 0)
-                  Text(
-                    '未送信の変更: ${auth.pendingCount} 件',
-                    style: const TextStyle(fontSize: 13, color: AppColors.darkTextSecondary),
-                  ),
                 const SizedBox(height: Spacing.md),
                 AppButton(
-                  key: const Key('settings-sync-now'),
-                  label: '今すぐ同期',
+                  key: const Key('settings-flush-now'),
+                  label: '今すぐ送信',
                   variant: AppButtonVariant.secondary,
-                  loading: auth.sync.status == SyncStatus.syncing,
-                  onPressed: auth.syncNow,
+                  onPressed: auth.pendingCount == 0 ? null : auth.flushNow,
                 ),
                 const SizedBox(height: Spacing.sm),
                 AppButton(
@@ -224,7 +210,7 @@ class SettingsScreen extends StatelessWidget {
             children: [
               Text(
                 'この端末のデータをすべて消して初期状態に戻します。'
-                '${mode == StorageMode.cloud ? 'クラウド側のバックアップは残ります。' : ''}',
+                'サーバ側も消えます。',
                 style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.darkTextSecondary),
               ),
               const SizedBox(height: Spacing.md),

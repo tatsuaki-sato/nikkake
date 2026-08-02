@@ -385,7 +385,7 @@ void registerScenarios() {
       await openTab(tester, '設定');
 
       expect(find.byKey(const Key('settings-local-card')), findsOneWidget);
-      expect(find.text('この端末にだけ保存中'), findsOneWidget);
+      expect(find.text('この端末専用の記録です'), findsOneWidget);
       expect(find.textContaining('サインインしなくても全機能が使えます'), findsOneWidget);
       expect(find.byKey(const Key('settings-enable-backup')), findsOneWidget);
     });

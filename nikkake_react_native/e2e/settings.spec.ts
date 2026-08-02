@@ -12,7 +12,7 @@ test.describe('設定とデータの保存先', () => {
     const card = page.getByTestId('settings-local-card');
 
     await expect(card).toBeVisible();
-    await expect(card).toContainText('この端末にだけ保存中');
+    await expect(card).toContainText('この端末専用の記録です');
     await expect(card).toContainText('サインインしなくても全機能が使えます');
     await expect(page.getByTestId('settings-enable-backup')).toBeVisible();
   });
@@ -87,3 +87,64 @@ test.describe('設定とデータの保存先', () => {
     await expect(page.getByTestId('routines-screen').getByText('いつものルーティン')).toBeVisible();
   });
 });
+
+/**
+ * サーバモードでのみ意味がある検証。
+ *
+ * 「アプリを消してデータも消えるのが嫌な人はログインすればいい」が
+ * 本当に成立しているかを確かめる。ここが落ちたら要件違反。
+ */
+test.describe('メール登録（サーバモードのみ）', () => {
+  test.skip(process.env.EXPO_PUBLIC_BACKEND !== 'server', 'サーバが必要');
+
+  test.beforeEach(async ({ page }) => {
+    await openApp(page);
+    // 遅延登録が終わるまではローカル実装で動くので、サーバへの登録を待つ
+    await openTab(page, '設定');
+    await expect(page.getByTestId('settings-screen')).toBeVisible();
+  });
+
+  const unique = () => `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
+
+  test('匿名で記録してからメール登録しても、記録は1件も失われない', async ({ page }) => {
+    // 匿名のまま1回記録する
+    await openTab(page, 'ホーム');
+    await page.getByText('いつものルーティン').click();
+    await expect(page.getByTestId('workout-screen')).toBeVisible();
+
+    await page.getByTestId('set-check-0-1').click();
+    await page.getByTestId('workout-finish').click();
+    await expect(page.getByTestId('summary-screen')).toBeVisible();
+    await page.getByTestId('summary-home').click();
+
+    await openTab(page, '設定');
+    await expect(page.getByTestId('count-logs')).toHaveText('1');
+
+    // メール登録する。新しいアカウントを作るのではなく、
+    // いまの匿名アカウントにメールを足すだけなのでデータは移動しない
+    await page.getByTestId('settings-enable-backup').click();
+    await page.getByTestId('login-to-register').click();
+    await page.getByTestId('register-email').fill(unique());
+    await page.getByTestId('register-password').fill('password123');
+    await page.getByTestId('register-submit').click();
+
+    await expect(page.getByTestId('register-done')).toBeVisible();
+    await page.getByTestId('register-back').click();
+
+    await openTab(page, '設定');
+
+    // 記録がそのまま残っていること。ここが要件の核心
+    await expect(page.getByTestId('count-logs')).toHaveText('1');
+    await expect(page.getByTestId('count-routines')).toHaveText('1');
+  });
+
+  test('間違ったパスワードでは、そのまま画面に出せる日本語のエラーが返る', async ({ page }) => {
+    await page.getByTestId('settings-enable-backup').click();
+    await page.getByTestId('login-email').fill('nobody@example.com');
+    await page.getByTestId('login-password').fill('wrongpassword');
+    await page.getByTestId('login-submit').click();
+
+    await expect(page.getByTestId('error-message')).toContainText('メールアドレスまたはパスワード');
+  });
+});
+

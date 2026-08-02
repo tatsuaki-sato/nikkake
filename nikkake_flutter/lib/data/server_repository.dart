@@ -511,6 +511,66 @@ class ServerRepository implements NikkakeRepository {
   }
 
   // ==============================
+  // アカウント
+  // ==============================
+  //
+  // メール登録は「新しいアカウントを作る」のではなく、
+  // いまの匿名アカウントにメールとパスワードを足すだけ。
+  // user.id が変わらないので、記録は1件も移動しない。
+
+  Future<Viewer> viewer() async {
+    final data = await _client.request(ops.viewer);
+    return Viewer.fromJson(data['viewer'] as Map<String, dynamic>);
+  }
+
+  /// 匿名アカウントにメールとパスワードを足す
+  Future<Viewer> attachEmailPassword({
+    required String email,
+    required String password,
+    String? displayName,
+  }) async {
+    final data = await _client.request(ops.attachEmailPassword, {
+      'email': email,
+      'password': password,
+      'displayName': displayName,
+    });
+
+    return Viewer.fromJson(
+      _unwrap(data['attachEmailPassword'] as Map<String, dynamic>, 'viewer'),
+    );
+  }
+
+  /// 既にあるアカウントへ切り替える。トークンが差し替わる
+  Future<Viewer> linkExistingAccount({
+    required String email,
+    required String password,
+    bool merge = false,
+  }) async {
+    final data = await _client.request(ops.linkExistingAccount, {
+      'email': email,
+      'password': password,
+      'merge': merge,
+    });
+
+    final payload = data['linkExistingAccount'] as Map<String, dynamic>;
+    final viewer = Viewer.fromJson(_unwrap(payload, 'viewer'));
+
+    final token = payload['token'] as String?;
+    if (token != null) await db.setMeta(apiToken: token);
+
+    return viewer;
+  }
+
+  /// サインアウトしても記録は消えない。この端末から見えなくなるだけ
+  Future<void> signOut() async {
+    try {
+      await _client.request(ops.signOut);
+    } finally {
+      await db.setMeta(apiToken: '');
+    }
+  }
+
+  // ==============================
   // 設定
   // ==============================
 

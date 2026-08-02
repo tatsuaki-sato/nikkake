@@ -91,8 +91,8 @@ export const CREATE_ANONYMOUS_ACCOUNT = `
 `;
 
 export const ATTACH_EMAIL_PASSWORD = `
-  mutation AttachEmailPassword($email: String!, $password: String!) {
-    attachEmailPassword(email: $email, password: $password) {
+  mutation AttachEmailPassword($email: String!, $password: String!, $displayName: String) {
+    attachEmailPassword(email: $email, password: $password, displayName: $displayName) {
       viewer { id email isAnonymous storageMode counts { routines exercises routineLogs exerciseLogs } }
       userErrors { message code path }
     }

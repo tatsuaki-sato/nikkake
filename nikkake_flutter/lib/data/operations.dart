@@ -96,9 +96,32 @@ const exerciseProgress = '''
 
 const viewer = '''
   query Viewer {
-    viewer { id email isAnonymous storageMode
+    viewer { id email displayName isAnonymous emailVerified storageMode
       counts { routines exercises routineLogs exerciseLogs } }
   }
+''';
+
+const attachEmailPassword = '''
+  mutation AttachEmailPassword(\$email: String!, \$password: String!, \$displayName: String) {
+    attachEmailPassword(email: \$email, password: \$password, displayName: \$displayName) {
+      viewer { id email isAnonymous emailVerified storageMode }
+      userErrors { message code path }
+    }
+  }
+''';
+
+const linkExistingAccount = '''
+  mutation LinkExistingAccount(\$email: String!, \$password: String!, \$merge: Boolean!) {
+    linkExistingAccount(email: \$email, password: \$password, mergeAnonymousData: \$merge) {
+      token
+      viewer { id email isAnonymous emailVerified storageMode }
+      userErrors { message code path }
+    }
+  }
+''';
+
+const signOut = '''
+  mutation SignOut { signOut { success userErrors { message code } } }
 ''';
 
 const createRoutine = '''

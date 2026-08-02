@@ -264,11 +264,17 @@ export class NikkakeApi {
 
   // ---------- アカウント ----------
 
-  async attachEmailPassword(email: string, password: string): Promise<MutationResult<Viewer>> {
+  /**
+   * いま使っている匿名アカウントにメールとパスワードを足す。
+   * 新しいアカウントを作るのではないので user.id は変わらず、記録は1件も移動しない。
+   */
+  async attachEmailPassword(
+    email: string, password: string, displayName?: string | null,
+  ): Promise<MutationResult<Viewer>> {
     await this.ensureSession();
     const data = await this.client.request<{
       attachEmailPassword: { viewer: Viewer | null; userErrors: UserError[] };
-    }>(ops.ATTACH_EMAIL_PASSWORD, { email, password });
+    }>(ops.ATTACH_EMAIL_PASSWORD, { email, password, displayName: displayName ?? null });
 
     return { data: data.attachEmailPassword.viewer, userErrors: data.attachEmailPassword.userErrors };
   }

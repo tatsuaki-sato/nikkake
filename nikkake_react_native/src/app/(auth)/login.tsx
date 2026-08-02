@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { useAuthStore } from '../../stores/authStore';
+import { useSessionStore } from '../../stores/sessionStore';
 import { Button, Card, ErrorText, Label, Spacing, Radius } from '../../components/ui';
 
 /**
@@ -13,7 +13,7 @@ import { Button, Card, ErrorText, Label, Spacing, Radius } from '../../component
  */
 export default function LoginScreen() {
   const router = useRouter();
-  const signIn = useAuthStore(s => s.signIn);
+  const signIn = useSessionStore(s => s.signIn);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +33,8 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      setErrorMsg(error === 'Invalid login credentials' ? 'メールアドレスまたはパスワードが違います' : error);
+      // サーバは userErrors.message にそのまま画面へ出せる日本語を入れて返す
+      setErrorMsg(error);
       return;
     }
 

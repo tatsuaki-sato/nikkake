@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import 'react-native-reanimated';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useAuthStore } from '../stores/authStore';
+import { useSessionStore } from '../stores/sessionStore';
 import { setupNotificationHandler } from '../lib/notifications';
 import { prepareLocalData, registerInBackground } from '../lib/bootstrap';
 import { onServerReady } from '../lib/session';
@@ -26,7 +26,7 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const initializeAuth = useAuthStore(s => s.initialize);
+  const initializeSession = useSessionStore(s => s.initialize);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function RootLayout() {
       // 以降はUIをブロックしない。
       // サーバへの登録も認証確認も通知設定も、表示には必要ない。
       void registerInBackground();
-      void initializeAuth();
+      void initializeSession();
       setupNotificationHandler();
     };
 
@@ -51,7 +51,7 @@ export default function RootLayout() {
 
     void start();
     return unsubscribe;
-  }, [initializeAuth]);
+  }, [initializeSession]);
 
   useEffect(() => {
     if (ready) {
