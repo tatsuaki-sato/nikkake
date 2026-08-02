@@ -29,8 +29,8 @@ RSpec.describe "アーキテクチャの約束" do
     # 「今日」は必ずクライアントが端末TZで決めて送る（schema.graphql の today 引数）。
     FORBIDDEN = /\b(Date\.today|Date\.current|Time\.current\.to_date|Time\.now\.to_date|Time\.zone\.today)\b/
 
-    it "app/domain, app/services, app/graphql で今日を求めていない" do
-      offenders = ruby_files("app/domain/**/*.rb", "app/services/**/*.rb", "app/graphql/**/*.rb")
+    it "lib/domain, app/services, app/graphql で今日を求めていない" do
+      offenders = ruby_files("lib/domain/**/*.rb", "app/services/**/*.rb", "app/graphql/**/*.rb")
                   .select { code_of(_1).match?(FORBIDDEN) }
                   .map { _1.delete_prefix("#{APP_ROOT}/") }
 
@@ -68,10 +68,10 @@ RSpec.describe "アーキテクチャの約束" do
   describe "ドメイン層は ActiveRecord に依存しない" do
     # 依存すると packages/contract/domain_cases.json による
     # TypeScript / Dart / Kotlin との一致テストが書けなくなる。
-    it "app/domain が ApplicationRecord やモデルを参照していない" do
+    it "lib/domain が ApplicationRecord やモデルを参照していない" do
       pattern = /\b(ApplicationRecord|ActiveRecord|Routine\b|RoutineLog\b|ExerciseLog\b)/
 
-      offenders = ruby_files("app/domain/**/*.rb")
+      offenders = ruby_files("lib/domain/**/*.rb")
                   .select { code_of(_1).match?(pattern) }
                   .map { _1.delete_prefix("#{APP_ROOT}/") }
 

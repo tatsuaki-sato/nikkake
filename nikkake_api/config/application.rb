@@ -40,5 +40,9 @@ module NikkakeApi
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    # CHECK制約・部分インデックス・配列型・（将来入れる場合の）RLSポリシーは
+    # schema.rb では表現しきれないため SQL 形式で保持する
+    config.active_record.schema_format = :sql
   end
 end

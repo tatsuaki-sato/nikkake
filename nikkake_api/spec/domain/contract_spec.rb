@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require "json"
-require_relative "../../app/domain/date_util"
-require_relative "../../app/domain/schedule"
-require_relative "../../app/domain/stats"
+require_relative "../../lib/domain/date_util"
+require_relative "../../lib/domain/schedule"
+require_relative "../../lib/domain/stats"
 
 # packages/contract/domain_cases.json を唯一の期待値として検証する。
 #
