@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { LogStatus, RoutineWithExercises, WorkoutSet, WorkoutState, WorkoutSummary } from '../../types';
+import { WorkoutSet, WorkoutState, WorkoutSummary } from '../../types';
+import type { WorkoutSession } from '../lib/views';
 import { saveWorkout } from '../lib/repository';
 import { DEFAULT_REST_SEC } from '../constants/exercises';
 import { nowIso } from '../lib/id';
@@ -15,7 +16,7 @@ interface WorkoutStoreState {
   isRestTimerActive: boolean;
   lastSummary: WorkoutSummary | null;
 
-  startWorkout: (routine: RoutineWithExercises, lastSets?: Record<string, WorkoutSet[]>) => void;
+  startWorkout: (session: WorkoutSession) => void;
   updateSet: (exerciseIndex: number, setNumber: number, patch: Partial<WorkoutSet>) => void;
   toggleSetComplete: (exerciseIndex: number, setNumber: number) => void;
   addSet: (exerciseIndex: number) => void;
@@ -31,56 +32,43 @@ interface WorkoutStoreState {
   clearSummary: () => void;
 }
 
-const countSets = (workout: WorkoutState) => {
-  let completed = 0;
-  let total = 0;
-  let volume = 0;
-
-  for (const exercise of workout.exercises) {
-    for (const set of exercise.sets) {
-      total++;
-      if (set.completed) {
-        completed++;
-        volume += (set.weight ?? 0) * (set.reps ?? 0);
-      }
-    }
-  }
-
-  return { completed, total, volume };
-};
-
-const resolveStatus = (completed: number, total: number): LogStatus => {
-  if (completed === 0) return 'skipped';
-  if (completed >= total) return 'completed';
-  return 'partial';
-};
-
 export const useWorkoutStore = create<WorkoutStoreState>((set, get) => ({
   activeWorkout: null,
   restTimer: 0,
   isRestTimerActive: false,
   lastSummary: null,
 
-  startWorkout: (routine, lastSets = {}) => {
-    const exercises = routine.routine_exercises.map(link => {
-      const previousSets = lastSets[link.exercise_id] ?? [];
+  startWorkout: session => {
+    const exercises = session.exercises.map(entry => {
+      // 「前回の記録」はサーバが解決済み。ここで過去ログを漁らない
+      const previousSets: WorkoutSet[] = entry.previousSets.map(s => ({
+        setNumber: s.setNumber,
+        reps: s.reps,
+        weight: s.weight,
+        durationSec: s.durationSec,
+        completed: true,
+      }));
 
       return {
-        routineExerciseId: link.id,
-        exercise: link.exercise,
-        targetSets: link.target_sets,
-        targetReps: link.target_reps,
-        targetWeight: link.target_weight,
-        targetDurationSec: link.target_duration_sec,
-        restSec: link.rest_sec ?? DEFAULT_REST_SEC,
+        routineExerciseId: entry.routineExerciseId,
+        exercise: {
+          id: entry.exercise.id,
+          name: entry.exercise.name,
+          icon: entry.exercise.icon,
+        },
+        targetSets: entry.targetSets,
+        targetReps: entry.targetReps,
+        targetWeight: entry.targetWeight,
+        targetDurationSec: entry.targetDurationSec,
+        restSec: entry.restSec ?? DEFAULT_REST_SEC,
         // 前回の記録があればそれを初期値にする。前回と同じ重量から始めることが多いため。
-        sets: Array.from({ length: Math.max(1, link.target_sets) }, (_, i) => {
+        sets: Array.from({ length: Math.max(1, entry.targetSets) }, (_, i) => {
           const previous = previousSets.find(s => s.setNumber === i + 1);
           return {
             setNumber: i + 1,
-            reps: previous?.reps ?? link.target_reps,
-            weight: previous?.weight ?? link.target_weight,
-            durationSec: previous?.durationSec ?? link.target_duration_sec,
+            reps: previous?.reps ?? entry.targetReps,
+            weight: previous?.weight ?? entry.targetWeight,
+            durationSec: previous?.durationSec ?? entry.targetDurationSec,
             completed: false,
           };
         }),
@@ -90,8 +78,8 @@ export const useWorkoutStore = create<WorkoutStoreState>((set, get) => ({
 
     set({
       activeWorkout: {
-        routineId: routine.id,
-        routineName: routine.name,
+        routineId: session.routine.id,
+        routineName: session.routine.name,
         exercises,
         startedAt: nowIso(),
         currentExerciseIndex: 0,
@@ -204,15 +192,14 @@ export const useWorkoutStore = create<WorkoutStoreState>((set, get) => ({
     const { activeWorkout } = get();
     if (!activeWorkout) return null;
 
-    const { completed, total, volume } = countSets(activeWorkout);
-    const status = resolveStatus(completed, total);
     const durationSec = Math.round((Date.now() - new Date(activeWorkout.startedAt).getTime()) / 1000);
 
-    const routineLog = await saveWorkout({
+    // セット数の集計も status の判定も repository が行う。
+    // ここで決めるとサーバの判定基準とずれたときに気づけない。
+    const saved = await saveWorkout({
       routineId: activeWorkout.routineId,
       startedAt: activeWorkout.startedAt,
       durationSec,
-      status,
       exercises: activeWorkout.exercises.map(e => ({
         routineExerciseId: e.routineExerciseId,
         exerciseId: e.exercise.id,
@@ -220,15 +207,9 @@ export const useWorkoutStore = create<WorkoutStoreState>((set, get) => ({
       })),
     });
 
-    const summary: WorkoutSummary = {
-      routineLogId: routineLog.id,
-      routineName: activeWorkout.routineName,
-      durationSec,
-      completedSets: completed,
-      totalSets: total,
-      totalVolume: volume,
-      status,
-    };
+    // ルーティン名だけは手元のほうが確実。
+    // オフラインで記録したときサーバは名前を返せない
+    const summary: WorkoutSummary = { ...saved, routineName: activeWorkout.routineName };
 
     set({ activeWorkout: null, restTimer: 0, isRestTimerActive: false, lastSummary: summary });
     return summary;

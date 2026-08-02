@@ -64,10 +64,34 @@ String formatDuration(int? seconds) {
 
 String formatWeight(double? weight) {
   if (weight == null) return '-- kg';
-  // 小数第1位まで。.0 は省く
+  return '${formatWeightNumber(weight)} kg';
+}
+
+/// 単位なしの重量。小数第1位まで、.0 は省く
+String formatWeightNumber(double weight) {
   final rounded = double.parse(weight.toStringAsFixed(1));
-  final text = rounded == rounded.roundToDouble() ? rounded.toInt().toString() : rounded.toString();
-  return '$text kg';
+  return rounded == rounded.roundToDouble()
+      ? rounded.toInt().toString()
+      : rounded.toString();
+}
+
+/// ワークアウト画面の「前回: …」に出す文字列。
+///
+/// packages/contract/domain_cases.json の formatPreviousSets が正で、
+/// Ruby の Domain::Stats.format_previous_sets と同じ答えを返さなければならない。
+String formatPreviousSets(List<PreviousSetLike> sets) => sets.map((set) {
+      if (set.durationSec != null) return '${set.durationSec}秒';
+      final label = set.weight == null ? '自重' : formatWeightNumber(set.weight!);
+      return '$label×${set.reps ?? '-'}';
+    }).join(' / ');
+
+/// 前回表示に必要な最小限。ExerciseLog からも API 応答からも作れる
+class PreviousSetLike {
+  const PreviousSetLike({this.reps, this.weight, this.durationSec});
+
+  final int? reps;
+  final double? weight;
+  final int? durationSec;
 }
 
 const _dayNames = ['日', '月', '火', '水', '木', '金', '土'];

@@ -114,5 +114,27 @@ module Domain
         this_week_count: done.count { DateUtil.format_date(DateUtil.parse_date(_1.log_date)) >= week_ago }
       )
     end
+
+    # ワークアウト画面の「前回: …」に出す文字列。
+    # packages/contract/domain_cases.json の formatPreviousSets が正。
+    #
+    # 表示文言はクライアントごとに書かない。
+    # docs/FEATURES.md が「文言まで一致」を求めており、
+    # 4実装に散らすと必ずどれかが古くなる
+    def format_previous_sets(sets)
+      sets.map { |set|
+        duration = value_of(set, :duration_sec)
+        next "#{duration}秒" if duration
+
+        weight = value_of(set, :weight)
+        reps = value_of(set, :reps)
+        label = weight ? DateUtil.format_weight_number(weight) : "自重"
+        "#{label}×#{reps || '-'}"
+      }.join(" / ")
+    end
+
+    def value_of(set, key)
+      set.respond_to?(key) ? set.public_send(key) : set[key]
+    end
   end
 end

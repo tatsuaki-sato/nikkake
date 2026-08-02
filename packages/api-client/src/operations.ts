@@ -81,8 +81,8 @@ export const VIEWER = `
 `;
 
 export const CREATE_ANONYMOUS_ACCOUNT = `
-  mutation CreateAnonymousAccount($timeZone: String!) {
-    createAnonymousAccount(timeZone: $timeZone) {
+  mutation CreateAnonymousAccount($timeZone: String!, $withStarterRoutine: Boolean) {
+    createAnonymousAccount(timeZone: $timeZone, withStarterRoutine: $withStarterRoutine) {
       token
       viewer { id isAnonymous storageMode counts { routines exercises routineLogs exerciseLogs } }
       userErrors { message code path }
@@ -151,6 +151,15 @@ export const SET_ROUTINE_ACTIVE = `
   mutation SetRoutineActive($id: ID!, $isActive: Boolean!) {
     setRoutineActive(id: $id, isActive: $isActive) {
       routine { ${ROUTINE_FIELDS} }
+      userErrors { message code }
+    }
+  }
+`;
+
+export const CREATE_CUSTOM_EXERCISE = `
+  mutation CreateCustomExercise($id: ID!, $name: String!, $category: ExerciseCategory!, $icon: String) {
+    createCustomExercise(id: $id, name: $name, category: $category, icon: $icon) {
+      exercise { id name category icon isPreset }
       userErrors { message code }
     }
   }

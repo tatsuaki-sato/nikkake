@@ -17,6 +17,11 @@ export const COLLECTIONS = {
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
 
 export interface LocalMeta {
+  /**
+   * 端末のデータをサーバへ預けた日時（サーバモードのみ）。
+   * 一度入ったら二度と送らない。繰り返すとサーバで消したルーティンが復活する
+   */
+  snapshotImportedAt?: string | null;
   schemaVersion: number;
   seeded: boolean;
   /** 最後にSupabaseと同期できた時刻。pullの差分取得カーソルも兼ねる */

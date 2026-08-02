@@ -3,9 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { getTodayRoutines, listRoutineLogs } from '../../lib/repository';
-import { calculateStreak } from '../../lib/stats';
-import { formatFrequency, greetingForHour } from '../../lib/utils';
+import { getHome } from '../../lib/repository';
+import { greetingForHour } from '../../lib/utils';
 import { Button, EmptyState, Spacing, Radius } from '../../components/ui';
 
 /**
@@ -16,25 +15,26 @@ import { Button, EmptyState, Spacing, Radius } from '../../components/ui';
 export default function HomeScreen() {
   const router = useRouter();
 
-  const todayQuery = useQuery({ queryKey: ['todayRoutines'], queryFn: getTodayRoutines });
-  const logsQuery = useQuery({ queryKey: ['routineLogs'], queryFn: listRoutineLogs });
+  // 区分（今日やる / 予定なし / 完了）も連続記録もサーバが決める。
+  // ここで振り分け直すと、サーバと端末で基準がずれても誰も気づけない。
+  const homeQuery = useQuery({ queryKey: ['home'], queryFn: () => getHome() });
 
   // ワークアウトから戻ってきたときに完了状態を即反映させる
   useFocusEffect(
     React.useCallback(() => {
-      void todayQuery.refetch();
-      void logsQuery.refetch();
+      void homeQuery.refetch();
     }, [])
   );
 
-  const todayRoutines = todayQuery.data ?? [];
-  const streak = calculateStreak(logsQuery.data ?? []);
+  const home = homeQuery.data;
+  const streak = home?.streak ?? { current: 0, longest: 0, lastCompletedDate: null };
 
-  const due = todayRoutines.filter(t => t.isDueToday && !t.isCompleted);
-  const done = todayRoutines.filter(t => t.isCompleted);
-  const later = todayRoutines.filter(t => !t.isDueToday && !t.isCompleted);
+  const due = home?.due ?? [];
+  const done = home?.completed ?? [];
+  const later = home?.notScheduled ?? [];
+  const total = due.length + done.length + later.length;
 
-  const refreshing = todayQuery.isFetching && !todayQuery.isLoading;
+  const refreshing = homeQuery.isFetching && !homeQuery.isLoading;
 
   return (
     <ScrollView
@@ -45,8 +45,7 @@ export default function HomeScreen() {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={() => {
-            void todayQuery.refetch();
-            void logsQuery.refetch();
+            void homeQuery.refetch();
           }}
           tintColor={Colors.dark.primary}
         />
@@ -75,7 +74,7 @@ export default function HomeScreen() {
 
       <Text style={styles.sectionTitle}>今日のルーティン</Text>
 
-      {todayRoutines.length === 0 ? (
+      {total === 0 ? (
         <EmptyState
           testID="home-empty"
           icon="📋"
@@ -99,7 +98,7 @@ export default function HomeScreen() {
           name={item.routine.name}
           icon={item.routine.icon}
           color={item.routine.color}
-          subtitle={`${formatFrequency(item.routine)} ・ ${item.routine.routine_exercises.length}種目`}
+          subtitle={`${item.frequencyLabel} ・ ${item.routine.routineExercises.length}種目`}
           state="due"
           onPress={() => router.push(`/workout/${item.routine.id}`)}
         />
@@ -115,7 +114,7 @@ export default function HomeScreen() {
               name={item.routine.name}
               icon={item.routine.icon}
               color={item.routine.color}
-              subtitle={formatFrequency(item.routine)}
+              subtitle={item.frequencyLabel}
               state="later"
               onPress={() => router.push(`/workout/${item.routine.id}`)}
             />

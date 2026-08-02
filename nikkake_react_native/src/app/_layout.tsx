@@ -6,7 +6,7 @@ import 'react-native-reanimated';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { setupNotificationHandler } from '../lib/notifications';
-import { seedIfNeeded } from '../lib/seed';
+import { prepareLocalData, registerInBackground } from '../lib/bootstrap';
 import { Colors } from '../constants/colors';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -29,18 +29,20 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const bootstrap = async () => {
-      // 初回起動時にプリセット種目と「いつものルーティン」を用意する。
-      // これが終わればサインインの有無に関係なくアプリは完全に使える。
-      await seedIfNeeded();
+    const start = async () => {
+      // 初回起動時にプリセット種目と「いつものルーティン」を端末に用意する。
+      // ここが終わればサインインの有無に関係なくアプリは完全に使える。
+      await prepareLocalData();
       setReady(true);
 
-      // 以降はUIをブロックしない。認証確認も通知設定も表示に必須ではない。
+      // 以降はUIをブロックしない。
+      // サーバへの登録も認証確認も通知設定も、表示には必要ない。
+      void registerInBackground();
       void initializeAuth();
       setupNotificationHandler();
     };
 
-    void bootstrap();
+    void start();
   }, [initializeAuth]);
 
   useEffect(() => {

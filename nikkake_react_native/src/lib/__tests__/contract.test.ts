@@ -11,6 +11,7 @@ import {
   formatWeight,
   formatFrequency,
   greetingForHour,
+  formatPreviousSets,
   parseDateString,
 } from '../utils';
 import { ExerciseLog, LogStatus, Routine, RoutineLog } from '../../../types';
@@ -144,5 +145,17 @@ describe('契約: formatFrequency', () => {
 describe('契約: greetingForHour', () => {
   it.each(cases.greetingForHour.cases.map(c => [c.name, c] as const))('%s', (_name, c) => {
     expect(greetingForHour(c.hour)).toBe(c.expect);
+  });
+});
+
+describe('契約: formatPreviousSets', () => {
+  it.each(cases.formatPreviousSets.cases.map(c => [c.name, c] as const))('%s', (_name, c) => {
+    const sets = c.sets.map(s => ({
+      reps: s.reps ?? null,
+      weight: s.weight ?? null,
+      durationSec: s.duration_sec ?? null,
+    }));
+
+    expect(formatPreviousSets(sets)).toBe(c.expect);
   });
 });

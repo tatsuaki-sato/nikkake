@@ -123,9 +123,20 @@ export interface WorkoutSet {
   completed: boolean;
 }
 
+/**
+ * 実行中に必要な種目情報。
+ * サーバの WorkoutSession とローカル実装の両方から作れるよう、
+ * 全項目ではなく画面が実際に使う3つだけに絞ってある。
+ */
+export interface WorkoutExerciseRef {
+  id: string;
+  name: string;
+  icon: string | null;
+}
+
 export interface WorkoutExerciseState {
   routineExerciseId: string;
-  exercise: Exercise;
+  exercise: WorkoutExerciseRef;
   targetSets: number;
   targetReps: number | null;
   targetWeight: number | null;

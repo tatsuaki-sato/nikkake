@@ -11,6 +11,8 @@ import com.myapplication.common.domain.calculateStreak
 import com.myapplication.common.domain.formatDuration
 import com.myapplication.common.domain.formatFrequency
 import com.myapplication.common.domain.formatWeight
+import com.myapplication.common.domain.PreviousSetLike
+import com.myapplication.common.domain.formatPreviousSets
 import com.myapplication.common.domain.greetingForHour
 import com.myapplication.common.domain.isRoutineDueToday
 import com.myapplication.common.domain.parseDateString
@@ -213,6 +215,19 @@ class ContractTest {
         }
         for (c in casesOf("greetingForHour")) {
             assertEquals(c.str("expect"), greetingForHour(c.int("hour")), c.str("name"))
+        }
+        for (c in casesOf("formatPreviousSets")) {
+            val sets = c.arr("sets").map { raw ->
+                val set = raw.jsonObject
+                PreviousSetLike(
+                    reps = set.intOrNull("reps"),
+                    weight = set["weight"]?.jsonPrimitive?.let {
+                        if (it.contentOrNull == null) null else it.double
+                    },
+                    durationSec = set.intOrNull("duration_sec"),
+                )
+            }
+            assertEquals(c.str("expect"), formatPreviousSets(sets), c.str("name"))
         }
     }
 }

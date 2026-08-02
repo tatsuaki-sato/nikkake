@@ -4,8 +4,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../constants/colors';
 import { useWorkoutStore } from '../../stores/workoutStore';
-import { listRoutineLogs } from '../../lib/repository';
-import { calculateStreak } from '../../lib/stats';
+import { getStreak } from '../../lib/repository';
 import { formatDuration } from '../../lib/utils';
 import { Button, Card, EmptyState, Spacing, Radius } from '../../components/ui';
 
@@ -18,8 +17,10 @@ export default function WorkoutSummaryScreen() {
   const summary = useWorkoutStore(s => s.lastSummary);
   const clearSummary = useWorkoutStore(s => s.clearSummary);
 
-  const { data: logs = [] } = useQuery({ queryKey: ['routineLogs'], queryFn: listRoutineLogs });
-  const streak = calculateStreak(logs);
+  const { data: streak = { current: 0, longest: 0, lastCompletedDate: null } } = useQuery({
+    queryKey: ['streak'],
+    queryFn: () => getStreak(),
+  });
 
   const goHome = () => {
     clearSummary();

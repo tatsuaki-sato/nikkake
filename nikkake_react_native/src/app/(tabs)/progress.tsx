@@ -3,60 +3,67 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { listRoutineLogs, listExerciseLogs, listExercises } from '../../lib/repository';
-import {
-  calculateDailyStats,
-  calculateExerciseProgress,
-  calculateOverallStats,
-  calculateStreak,
-  completedDateSet,
-} from '../../lib/stats';
+import { getExerciseProgressPoints, getProgress } from '../../lib/repository';
 import { addDays, formatDuration, getDateString } from '../../lib/utils';
 import { Card, EmptyState, SectionTitle, Spacing, Radius } from '../../components/ui';
 
 /**
  * 進捗。
  * グラフ描画ライブラリは使わず、Viewの高さと色だけで表現している。
- * 3プラットフォームで同じ見た目を再現しやすく、Web(E2E)でも確実に描画されるため。
+ * 4クライアントで同じ見た目を再現しやすく、E2Eでも確実に描画されるため。
+ *
+ * 数字はすべてサーバが集計したものを表示するだけ。
+ * ここに計算を書き足したら、それはサーバへ移すべきロジックが漏れている。
  */
 export default function ProgressScreen() {
   const [range, setRange] = useState<7 | 30>(7);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
 
-  const routineLogsQuery = useQuery({ queryKey: ['routineLogs'], queryFn: listRoutineLogs });
-  const exerciseLogsQuery = useQuery({ queryKey: ['exerciseLogs'], queryFn: listExerciseLogs });
-  const exercisesQuery = useQuery({ queryKey: ['exercises'], queryFn: listExercises });
+  const progressQuery = useQuery({
+    queryKey: ['progress', range],
+    queryFn: () => getProgress(range),
+  });
 
   useFocusEffect(
     React.useCallback(() => {
-      void routineLogsQuery.refetch();
-      void exerciseLogsQuery.refetch();
+      void progressQuery.refetch();
     }, [])
   );
 
-  const routineLogs = routineLogsQuery.data ?? [];
-  const exerciseLogs = exerciseLogsQuery.data ?? [];
-  const exercises = exercisesQuery.data ?? [];
+  const progress = progressQuery.data;
+  const overall = progress?.overall ?? {
+    totalWorkouts: 0,
+    thisWeekCount: 0,
+    totalDurationSec: 0,
+    totalSets: 0,
+  };
+  const streak = progress?.streak ?? { current: 0, longest: 0, lastCompletedDate: null };
+  const daily = progress?.dailyStats ?? [];
 
-  const overall = calculateOverallStats(routineLogs, exerciseLogs);
-  const streak = calculateStreak(routineLogs);
-  const daily = calculateDailyStats(routineLogs, range);
-  const doneDates = completedDateSet(routineLogs);
-
-  // 記録が残っている種目だけを選択肢にする
-  const loggedExercises = useMemo(() => {
-    const ids = new Set(exerciseLogs.map(l => l.exercise_id));
-    return exercises.filter(e => ids.has(e.id));
-  }, [exercises, exerciseLogs]);
+  // 記録が残っている種目だけが返ってくる
+  const loggedExercises = progress?.exercisesWithLogs ?? [];
+  const doneDates = useMemo(
+    () => new Set(progress?.completedDates ?? []),
+    [progress?.completedDates]
+  );
 
   const activeExerciseId = selectedExerciseId ?? loggedExercises[0]?.id ?? null;
-  const exerciseProgress = activeExerciseId
-    ? calculateExerciseProgress(activeExerciseId, routineLogs, exerciseLogs)
-    : [];
+
+  const exerciseProgressQuery = useQuery({
+    queryKey: ['exerciseProgress', activeExerciseId],
+    queryFn: () => getExerciseProgressPoints(activeExerciseId!),
+    enabled: activeExerciseId !== null,
+  });
+  const exerciseProgress = exerciseProgressQuery.data ?? [];
 
   const maxCount = Math.max(1, ...daily.map(d => d.completedCount));
 
-  if (routineLogs.length === 0) {
+  // 読み込み中に空状態を出すと一瞬ちらつくので、応答が来るまでは何も出さない
+  if (progressQuery.isLoading) {
+    return <View style={styles.centered} testID="progress-screen" />;
+  }
+
+  if (overall.totalWorkouts === 0) {
     return (
       <View style={styles.centered} testID="progress-screen">
         <EmptyState
@@ -148,8 +155,7 @@ export default function ProgressScreen() {
             {exerciseProgress.length === 0 ? (
               <Text style={styles.muted}>記録がありません。</Text>
             ) : (
-              exerciseProgress
-                .slice(-8)
+              [...exerciseProgress]
                 .reverse()
                 .map(point => (
                   <View key={point.date} style={styles.progressRow}>

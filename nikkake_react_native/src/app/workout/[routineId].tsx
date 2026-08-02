@@ -13,13 +13,14 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { useWorkoutStore } from '../../stores/workoutStore';
-import { getRoutineWithExercises, getLastSetsByExercise } from '../../lib/repository';
+import { getWorkoutSession } from '../../lib/repository';
 import { formatDuration } from '../../lib/utils';
 import { Button, EmptyState, Spacing, Radius } from '../../components/ui';
 
 /**
  * ワークアウト実行画面。
- * 記録はすべてローカルなので、電波が無い場所（ジムの地下など）でも完全に動く。
+ * 記録は圏外でもキューに積まれて失われないので、
+ * 電波が無い場所（ジムの地下など）でも最後まで通せる。
  */
 export default function WorkoutScreen() {
   const { routineId } = useLocalSearchParams<{ routineId: string }>();
@@ -53,18 +54,16 @@ export default function WorkoutScreen() {
     startedRef.current = true;
 
     const load = async () => {
-      const [routine, lastSets] = await Promise.all([
-        getRoutineWithExercises(routineId),
-        getLastSetsByExercise(routineId),
-      ]);
+      // 種目・目標値・前回の記録がまとめて1本で返る
+      const session = await getWorkoutSession(routineId).catch(() => null);
 
-      if (!routine || routine.routine_exercises.length === 0) {
+      if (!session || session.exercises.length === 0) {
         setNotFound(true);
         setLoading(false);
         return;
       }
 
-      startWorkout(routine, lastSets);
+      startWorkout(session);
       setLoading(false);
     };
 

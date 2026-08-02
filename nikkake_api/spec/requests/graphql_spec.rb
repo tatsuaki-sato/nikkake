@@ -313,7 +313,7 @@ RSpec.describe "GraphQL API", type: :request do
                 .dig("data", "workoutSession", "exercises")
 
       expect(entries.size).to eq(4)
-      expect(entries.first["previousLabel"]).to eq("55.0×12")
+      expect(entries.first["previousLabel"]).to eq("55×12")
       # プランクは時間計測なので targetDurationSec が入る
       expect(entries.last["targetDurationSec"]).to eq(30)
     end

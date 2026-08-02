@@ -55,13 +55,19 @@ module Domain
       h.positive? ? format("%d:%02d:%02d", h, m, s) : format("%d:%02d", m, s)
     end
 
-    # kg -> "60 kg" / "62.5 kg"。nil は "-- kg"。小数第1位まで、.0 は省く
+    # kg -> "60 kg" / "62.5 kg"。nil は "-- kg"
     def format_weight(weight)
       return "-- kg" if weight.nil?
 
+      "#{format_weight_number(weight)} kg"
+    end
+
+    # 単位を付けない重量。小数第1位まで、.0 は省く。
+    # DB が float なので、素直に to_s すると "50.0" になってしまう。
+    # 「前回: 50.0×10」と出てしまうのを防ぐために切り出してある
+    def format_weight_number(weight)
       rounded = weight.to_f.round(1)
-      text = (rounded % 1).zero? ? rounded.to_i.to_s : rounded.to_s
-      "#{text} kg"
+      (rounded % 1).zero? ? rounded.to_i.to_s : rounded.to_s
     end
 
     def greeting_for_hour(hour)

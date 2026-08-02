@@ -72,8 +72,34 @@ export const formatDuration = (seconds: number | null | undefined): string => {
 
 export const formatWeight = (weight: number | null | undefined): string => {
   if (weight === null || weight === undefined || Number.isNaN(weight)) return '-- kg';
-  return `${Number(weight.toFixed(1))} kg`;
+  return `${formatWeightNumber(weight)} kg`;
 };
+
+/** 単位なしの重量。小数第1位まで、.0 は省く */
+export const formatWeightNumber = (weight: number): string => String(Number(weight.toFixed(1)));
+
+export interface PreviousSetLike {
+  reps: number | null;
+  weight: number | null;
+  durationSec: number | null;
+}
+
+/**
+ * ワークアウト画面の「前回: …」に出す文字列。
+ * packages/contract/domain_cases.json の formatPreviousSets が正で、
+ * Ruby の Domain::Stats.format_previous_sets と同じ答えを返さなければならない。
+ */
+export const formatPreviousSets = (sets: PreviousSetLike[]): string =>
+  sets
+    .map(set => {
+      if (set.durationSec !== null && set.durationSec !== undefined) return `${set.durationSec}秒`;
+
+      const label = set.weight === null || set.weight === undefined
+        ? '自重'
+        : formatWeightNumber(set.weight);
+      return `${label}×${set.reps ?? '-'}`;
+    })
+    .join(' / ');
 
 export const formatFrequency = (routine: Pick<Routine, 'frequency_type' | 'frequency_value' | 'frequency_days'>): string => {
   const dayNames = ['日', '月', '火', '水', '木', '金', '土'];

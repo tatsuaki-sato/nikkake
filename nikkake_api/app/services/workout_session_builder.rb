@@ -32,7 +32,7 @@ class WorkoutSessionBuilder
         target_duration_sec: link.target_duration_sec,
         rest_sec: link.rest_sec || DEFAULT_REST_SEC,
         previous_sets: sets,
-        previous_label: sets.empty? ? nil : format_previous(sets)
+        previous_label: sets.empty? ? nil : Domain::Stats.format_previous_sets(sets)
       )
     end
 
@@ -59,11 +59,5 @@ class WorkoutSessionBuilder
         )
       end
     end
-  end
-
-  # 「50.0×10 / 50.0×10」「30秒 / 30秒」
-  def format_previous(sets)
-    sets.map { _1.duration_sec ? "#{_1.duration_sec}秒" : "#{_1.weight || '自重'}×#{_1.reps || '-'}" }
-        .join(" / ")
   end
 end

@@ -208,4 +208,20 @@ void main() {
       });
     }
   });
+
+  group('契約: formatPreviousSets', () {
+    for (final c in casesOf('formatPreviousSets')) {
+      test(c['name'] as String, () {
+        final sets = (c['sets'] as List)
+            .map((e) => PreviousSetLike(
+                  reps: e['reps'] as int?,
+                  weight: (e['weight'] as num?)?.toDouble(),
+                  durationSec: e['duration_sec'] as int?,
+                ))
+            .toList();
+
+        expect(formatPreviousSets(sets), c['expect']);
+      });
+    }
+  });
 }

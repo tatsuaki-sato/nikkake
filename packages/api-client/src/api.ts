@@ -26,6 +26,7 @@ export class NikkakeApi {
   readonly queue: OfflineQueue;
   private readonly client: GraphQLClient;
   private sessionPromise: Promise<string | null> | null = null;
+  private withStarterRoutine = true;
 
   constructor(
     private readonly store: KeyValueStore,
@@ -62,11 +63,24 @@ export class NikkakeApi {
     return this.sessionPromise;
   }
 
+  /**
+   * 初期ルーティンをサーバに作らせない。
+   * ネイティブは端末側でシードしてから importSnapshot するので、
+   * 両方で作ると「いつものルーティン」が2つ並ぶ。
+   * ensureSession より前に呼ぶこと。
+   */
+  suppressStarterRoutine(): void {
+    this.withStarterRoutine = false;
+  }
+
   private async createAnonymousSession(): Promise<string | null> {
     try {
       const data = await this.client.request<{
         createAnonymousAccount: { token: string | null; userErrors: UserError[] };
-      }>(ops.CREATE_ANONYMOUS_ACCOUNT, { timeZone: currentTimeZone() });
+      }>(ops.CREATE_ANONYMOUS_ACCOUNT, {
+        timeZone: currentTimeZone(),
+        withStarterRoutine: this.withStarterRoutine,
+      });
 
       const token = data.createAnonymousAccount.token;
       if (token) this.store.set(TOKEN_KEY, token);
@@ -182,6 +196,20 @@ export class NikkakeApi {
     return { data: data.setRoutineActive.routine, userErrors: data.setRoutineActive.userErrors };
   }
 
+  async createCustomExercise(input: {
+    name: string; category: Exercise['category']; icon?: string | null;
+  }): Promise<MutationResult<Exercise>> {
+    await this.ensureSession();
+    const data = await this.client.request<{
+      createCustomExercise: { exercise: Exercise | null; userErrors: UserError[] };
+    }>(ops.CREATE_CUSTOM_EXERCISE, { id: uuid(), icon: null, ...input });
+
+    return {
+      data: data.createCustomExercise.exercise,
+      userErrors: data.createCustomExercise.userErrors,
+    };
+  }
+
   // ---------- 記録（オフライン可） ----------
 
   /**
@@ -257,6 +285,25 @@ export class NikkakeApi {
     if (payload.token) this.store.set(TOKEN_KEY, payload.token);
 
     return { data: payload.viewer, userErrors: payload.userErrors };
+  }
+
+  /**
+   * 端末に溜まっているデータをサーバへ丸ごと預ける。遅延登録の後半。
+   * 主キーはクライアント生成なので、二重に呼んでも増えない（ON CONFLICT で吸収）。
+   */
+  async importSnapshot(snapshot: {
+    exercises?: unknown[]; routines?: unknown[]; routineExercises?: unknown[];
+    routineLogs?: unknown[]; exerciseLogs?: unknown[];
+  }): Promise<{ imported: Record<string, number>; userErrors: UserError[] }> {
+    await this.ensureSession();
+    const data = await this.client.request<{
+      importSnapshot: { imported: Record<string, number>; userErrors: UserError[] };
+    }>(ops.IMPORT_SNAPSHOT, {
+      exercises: [], routines: [], routineExercises: [],
+      routineLogs: [], exerciseLogs: [], ...snapshot,
+    });
+
+    return data.importSnapshot;
   }
 
   async signOut(): Promise<void> {

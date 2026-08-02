@@ -1,11 +1,17 @@
 import { useWorkoutStore } from '../workoutStore';
 import { resetDatabase } from '../../lib/localDb';
 import { seedIfNeeded } from '../../lib/seed';
-import { createRoutine, getRoutineWithExercises, listExerciseLogs, listRoutineLogs } from '../../lib/repository';
+import {
+  createRoutine,
+  getWorkoutSession,
+  listExerciseLogs,
+  listRoutineLogs,
+} from '../../lib/repository.local';
 import { PRESET_EXERCISES } from '../../constants/exercises';
-import { RoutineWithExercises } from '../../../types';
+import type { WorkoutSession } from '../../lib/views';
 
-const buildRoutine = async (): Promise<RoutineWithExercises> => {
+/** ルーティンを1本作って、実行用のセッションを組み立てる */
+const buildSession = async (): Promise<WorkoutSession> => {
   const routine = await createRoutine({
     name: 'テスト',
     icon: '💪',
@@ -33,7 +39,7 @@ const buildRoutine = async (): Promise<RoutineWithExercises> => {
     ],
   });
 
-  return (await getRoutineWithExercises(routine.id))!;
+  return (await getWorkoutSession(routine.id))!;
 };
 
 beforeEach(async () => {
@@ -49,8 +55,8 @@ beforeEach(async () => {
 
 describe('ワークアウトの開始', () => {
   it('目標値をそのままセットの初期値にする', async () => {
-    const routine = await buildRoutine();
-    useWorkoutStore.getState().startWorkout(routine);
+    const session = await buildSession();
+    useWorkoutStore.getState().startWorkout(session);
 
     const workout = useWorkoutStore.getState().activeWorkout!;
 
@@ -61,33 +67,33 @@ describe('ワークアウトの開始', () => {
   });
 
   it('前回の記録があればそちらを初期値にする', async () => {
-    const routine = await buildRoutine();
-    const exerciseId = routine.routine_exercises[0].exercise_id;
+    const session = await buildSession();
 
-    useWorkoutStore.getState().startWorkout(routine, {
-      [exerciseId]: [
-        { setNumber: 1, reps: 12, weight: 65, durationSec: null, completed: true },
-        { setNumber: 2, reps: 11, weight: 65, durationSec: null, completed: true },
-      ],
-    });
+    // 前回の記録はサーバ（ローカル実装なら getWorkoutSession）が解決して渡してくる
+    session.exercises[0].previousSets = [
+      { setNumber: 1, reps: 12, weight: 65, durationSec: null },
+      { setNumber: 2, reps: 11, weight: 65, durationSec: null },
+    ];
+
+    useWorkoutStore.getState().startWorkout(session);
 
     const workout = useWorkoutStore.getState().activeWorkout!;
     expect(workout.exercises[0].sets[0]).toMatchObject({ reps: 12, weight: 65 });
     expect(workout.exercises[0].previousSets).toHaveLength(2);
   });
 
-  it('target_setsが0でも最低1セットは用意する', async () => {
-    const routine = await buildRoutine();
-    routine.routine_exercises[0].target_sets = 0;
+  it('targetSetsが0でも最低1セットは用意する', async () => {
+    const session = await buildSession();
+    session.exercises[0].targetSets = 0;
 
-    useWorkoutStore.getState().startWorkout(routine);
+    useWorkoutStore.getState().startWorkout(session);
     expect(useWorkoutStore.getState().activeWorkout!.exercises[0].sets).toHaveLength(1);
   });
 });
 
 describe('セットの操作', () => {
   beforeEach(async () => {
-    useWorkoutStore.getState().startWorkout(await buildRoutine());
+    useWorkoutStore.getState().startWorkout(await buildSession());
   });
 
   it('値を編集できる', () => {
@@ -156,7 +162,7 @@ describe('セットの操作', () => {
 
 describe('ワークアウトの完了', () => {
   it('全セット完了なら completed として保存される', async () => {
-    useWorkoutStore.getState().startWorkout(await buildRoutine());
+    useWorkoutStore.getState().startWorkout(await buildSession());
     const store = useWorkoutStore.getState();
 
     store.toggleSetComplete(0, 1);
@@ -177,7 +183,7 @@ describe('ワークアウトの完了', () => {
   });
 
   it('一部だけなら partial になる', async () => {
-    useWorkoutStore.getState().startWorkout(await buildRoutine());
+    useWorkoutStore.getState().startWorkout(await buildSession());
     useWorkoutStore.getState().toggleSetComplete(0, 1);
 
     const summary = await useWorkoutStore.getState().finishWorkout();
@@ -188,7 +194,7 @@ describe('ワークアウトの完了', () => {
   });
 
   it('1つも完了していなければ skipped になる', async () => {
-    useWorkoutStore.getState().startWorkout(await buildRoutine());
+    useWorkoutStore.getState().startWorkout(await buildSession());
 
     const summary = await useWorkoutStore.getState().finishWorkout();
 
@@ -197,7 +203,7 @@ describe('ワークアウトの完了', () => {
   });
 
   it('完了後は実行中の状態がクリアされ、サマリーが残る', async () => {
-    useWorkoutStore.getState().startWorkout(await buildRoutine());
+    useWorkoutStore.getState().startWorkout(await buildSession());
     await useWorkoutStore.getState().finishWorkout();
 
     const state = useWorkoutStore.getState();
@@ -207,7 +213,7 @@ describe('ワークアウトの完了', () => {
   });
 
   it('中断すると何も保存されない', async () => {
-    useWorkoutStore.getState().startWorkout(await buildRoutine());
+    useWorkoutStore.getState().startWorkout(await buildSession());
     useWorkoutStore.getState().toggleSetComplete(0, 1);
     useWorkoutStore.getState().cancelWorkout();
 

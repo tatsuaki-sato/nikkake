@@ -155,7 +155,7 @@ RSpec.describe "ワークアウトの記録と集計" do
 
       expect(entry.previous_sets.size).to eq(2)
       expect(entry.previous_sets.first.reps).to eq(12)
-      expect(entry.previous_label).to eq("55.0×12 / 60.0×10")
+      expect(entry.previous_label).to eq("55×12 / 60×10")
     end
 
     it "記録が無ければ前回欄は空になる" do

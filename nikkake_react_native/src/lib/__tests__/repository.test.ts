@@ -19,7 +19,7 @@ import {
   getRoutineLogDetail,
   deleteRoutineLog,
   RoutineInput,
-} from '../repository';
+} from '../repository.local';
 import { PRESET_EXERCISES, STARTER_ROUTINE } from '../../constants/exercises';
 import { getDateString } from '../utils';
 
@@ -167,7 +167,6 @@ describe('ワークアウトの保存', () => {
       routineId: routine.id,
       startedAt: new Date().toISOString(),
       durationSec: 600,
-      status: 'completed',
       exercises: [
         {
           routineExerciseId: link.id,
@@ -193,7 +192,6 @@ describe('ワークアウトの保存', () => {
       routineId: routine.id,
       startedAt: new Date().toISOString(),
       durationSec: 300,
-      status: 'completed',
       exercises: [{ routineExerciseId: link.id, exerciseId: link.exercise_id, sets: [] }],
     });
 
@@ -202,16 +200,29 @@ describe('ワークアウトの保存', () => {
     expect(todayLogs[0].log_date).toBe(getDateString());
   });
 
-  it('完了済みのルーティンは今日の一覧で完了扱いになる', async () => {
+  it('全セット完了なら completed になり、今日の一覧でも完了扱いになる', async () => {
     const { routine, link } = await workoutFor();
 
-    await saveWorkout({
+    // status は入力せず、完了セット数から導出される
+    const summary = await saveWorkout({
       routineId: routine.id,
       startedAt: new Date().toISOString(),
       durationSec: 300,
-      status: 'completed',
-      exercises: [{ routineExerciseId: link.id, exerciseId: link.exercise_id, sets: [] }],
+      exercises: [
+        {
+          routineExerciseId: link.id,
+          exerciseId: link.exercise_id,
+          sets: [
+            { setNumber: 1, reps: 10, weight: 50, durationSec: null, completed: true },
+            { setNumber: 2, reps: 10, weight: 50, durationSec: null, completed: true },
+          ],
+        },
+      ],
     });
+
+    expect(summary.status).toBe('completed');
+    expect(summary.completedSets).toBe(2);
+    expect(summary.totalVolume).toBe(1000);
 
     const today = await getTodayRoutines();
     expect(today.find(t => t.routine.id === routine.id)?.isCompleted).toBe(true);
@@ -224,7 +235,6 @@ describe('ワークアウトの保存', () => {
       routineId: routine.id,
       startedAt: new Date().toISOString(),
       durationSec: 120,
-      status: 'partial',
       exercises: [
         {
           routineExerciseId: link.id,
@@ -245,7 +255,6 @@ describe('ワークアウトの保存', () => {
       routineId: routine.id,
       startedAt: new Date().toISOString(),
       durationSec: 10,
-      status: 'skipped',
       exercises: [{ routineExerciseId: link.id, exerciseId: link.exercise_id, sets: [] }],
     });
 
@@ -260,7 +269,6 @@ describe('ワークアウトの保存', () => {
       routineId: routine.id,
       startedAt: new Date().toISOString(),
       durationSec: 300,
-      status: 'completed',
       exercises: [
         {
           routineExerciseId: link.id,
@@ -286,7 +294,6 @@ describe('ワークアウトの保存', () => {
       routineId: routine.id,
       startedAt: new Date().toISOString(),
       durationSec: 300,
-      status: 'completed',
       exercises: [
         {
           routineExerciseId: link.id,
@@ -307,11 +314,10 @@ describe('ワークアウトの保存', () => {
   it('ログを削除するとセット記録も一緒に消える', async () => {
     const { routine, link } = await workoutFor();
 
-    const routineLog = await saveWorkout({
+    const summary = await saveWorkout({
       routineId: routine.id,
       startedAt: new Date().toISOString(),
       durationSec: 300,
-      status: 'completed',
       exercises: [
         {
           routineExerciseId: link.id,
@@ -321,11 +327,11 @@ describe('ワークアウトの保存', () => {
       ],
     });
 
-    expect((await getRoutineLogDetail(routineLog.id))?.exerciseLogs).toHaveLength(1);
+    expect((await getRoutineLogDetail(summary.routineLogId))?.exerciseLogs).toHaveLength(1);
 
-    await deleteRoutineLog(routineLog.id);
+    await deleteRoutineLog(summary.routineLogId);
 
-    expect(await getRoutineLogDetail(routineLog.id)).toBeNull();
+    expect(await getRoutineLogDetail(summary.routineLogId)).toBeNull();
     expect(await listExerciseLogs()).toHaveLength(0);
     expect(await listRoutineLogs()).toHaveLength(0);
   });

@@ -80,11 +80,35 @@ fun formatDuration(seconds: Int?): String {
 
 fun formatWeight(weight: Double?): String {
     if (weight == null) return "-- kg"
+    return "${formatWeightNumber(weight)} kg"
+}
 
-    // 小数第1位まで。.0 は省く
+/** 単位なしの重量。小数第1位まで、.0 は省く */
+fun formatWeightNumber(weight: Double): String {
     val rounded = kotlin.math.round(weight * 10) / 10
-    val text = if (rounded == kotlin.math.floor(rounded)) rounded.toInt().toString() else rounded.toString()
-    return "$text kg"
+    return if (rounded == kotlin.math.floor(rounded)) rounded.toInt().toString() else rounded.toString()
+}
+
+/** 前回表示に必要な最小限。ExerciseLog からも API 応答からも作れる */
+data class PreviousSetLike(
+    val reps: Int? = null,
+    val weight: Double? = null,
+    val durationSec: Int? = null,
+)
+
+/**
+ * ワークアウト画面の「前回: …」に出す文字列。
+ *
+ * packages/contract/domain_cases.json の formatPreviousSets が正で、
+ * Ruby の Domain::Stats.format_previous_sets と同じ答えを返さなければならない。
+ */
+fun formatPreviousSets(sets: List<PreviousSetLike>): String = sets.joinToString(" / ") { set ->
+    if (set.durationSec != null) {
+        "${set.durationSec}秒"
+    } else {
+        val label = set.weight?.let { formatWeightNumber(it) } ?: "自重"
+        "$label×${set.reps ?: "-"}"
+    }
 }
 
 private val dayNames = listOf("日", "月", "火", "水", "木", "金", "土")

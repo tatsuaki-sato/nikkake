@@ -167,4 +167,13 @@ RSpec.describe "ドメイン契約" do
       end
     end
   end
+
+  describe "formatPreviousSets" do
+    CASES["formatPreviousSets"]["cases"].each do |c|
+      it c["name"] do
+        sets = c["sets"].map { _1.transform_keys(&:to_sym) }
+        expect(Domain::Stats.format_previous_sets(sets)).to eq(c["expect"])
+      end
+    end
+  end
 end
