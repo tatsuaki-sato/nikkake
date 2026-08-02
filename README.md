@@ -5,53 +5,121 @@
 **アプリを開いた瞬間から使えます。** サインインは不要で、ルーティンの作成も記録も統計もすべて動きます。
 サインインは「機種変更やアプリの入れ直しで記録を失いたくない人」向けのバックアップ機能で、完全に任意です。
 
-このリポジトリには同じアプリの実装が3つ入っています。仕様・データモデル・画面構成・配色はすべて揃えてあります。
+## 構成
+
+ビジネスロジックは Rails に集約し、GraphQL で4つのクライアントへ供給します。
+
+```
+                 ┌──────────────────────────┐
+                 │  nikkake_api (Rails 8)   │  ← ロジックはここにだけ置く
+                 │  GraphQL / PostgreSQL    │
+                 └────────────┬─────────────┘
+                              │ GraphQL
+      ┌──────────────┬────────┴───────┬──────────────┐
+      │              │                │              │
+  nikkake_web   nikkake_          nikkake_       nikkake_kmp
+  (PC/SP Web)   react_native       flutter       (Compose MP)
+```
 
 | 実装 | ディレクトリ | 技術 | 位置づけ |
 |---|---|---|---|
-| React Native / Expo | [nikkake_react_native](nikkake_react_native) | TypeScript, Expo Router, Zustand, TanStack Query | リファレンス実装 |
-| Flutter | [nikkake_flutter](nikkake_flutter) | Dart, Provider, shared_preferences | パリティ達成 |
-| Kotlin Multiplatform | [nikkake_kmp](nikkake_kmp) | Compose Multiplatform, kotlinx-serialization | パリティ達成 |
+| Rails API | [nikkake_api](nikkake_api) | Ruby 4 / Rails 8 / graphql-ruby / PostgreSQL 16 | 仕様の実行可能な正典 |
+| Web (PC/SP) | [nikkake_web](nikkake_web) | Vite 6, React 19, TanStack Query | サーバ主導のリファレンス |
+| React Native | [nikkake_react_native](nikkake_react_native) | Expo 57, Expo Router, Zustand | サーバ／ローカル両モード |
+| Flutter | [nikkake_flutter](nikkake_flutter) | Dart, Provider | ローカルのみ（接続替え未了） |
+| Kotlin Multiplatform | [nikkake_kmp](nikkake_kmp) | Compose Multiplatform | ローカルのみ（接続替え未了） |
 
-仕様変更を入れるときは **React Native 版を先に変更し、他2つを追従させる** のが原則です。
+**言語をまたぐ約束ごとは [packages/contract](packages/contract) が唯一の正**です。
+プリセット種目・GraphQLスキーマ・ドメインの期待値をここに1本化し、
+4言語のテストが同じファイルを読んで一致を検証しています（[docs/CONTRACT.md](docs/CONTRACT.md)）。
+
+## ログイン不要と、サーバ主導の両立
+
+サーバにロジックを寄せると、ふつうは「起動時にアカウントが要る」ことになります。
+それを避けるために **遅延登録** という順序にしています。
+
+```
+初回起動
+  1. 端末にプリセット種目と「いつものルーティン」を入れて、ホームを描く
+     ← ここまでネットワークを一切使わない。圏外でも1タップで始められる
+  2. 以降バックグラウンドで
+       匿名アカウントを作る → 端末のデータをまるごと預ける
+       成功したらサーバ計算モードへ切り替え。失敗したら次の起動で再試行
+```
+
+この順序は仕様です。逆にすると、アプリを入れた直後に圏外だと1歩も動きません。
 
 ## ドキュメント
 
 | ドキュメント | 内容 |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | ローカルファースト設計、同期の仕組み、3実装の層構成 |
-| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | テーブル定義、ID規約、論理削除、RLS |
 | [docs/FEATURES.md](docs/FEATURES.md) | 全画面・全機能の仕様（実装間の正典） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | サーバ主導への移行、遅延登録、オフライン記録、タイムゾーン |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | テーブル定義、ID規約、論理削除、楽観ロック |
+| [docs/CONTRACT.md](docs/CONTRACT.md) | 4言語の一致をどう機械的に守っているか |
 | [docs/TESTING.md](docs/TESTING.md) | テストの構成と実行方法 |
-| [docs/QA.md](docs/QA.md) | リリース前のQAチェックリストと最新の実行結果 |
+| [docs/QA.md](docs/QA.md) | QAチェックリストと最新の実行結果、未検証の範囲 |
 | [.agents/AGENTS.md](.agents/AGENTS.md) | エージェント向けの作業ルール |
 
-各実装の固有事情は `nikkake_*/DEVELOPMENT_CONTEXT.md` にあります。
+## 動かす
 
-## クイックスタート
+### バックエンド
 
-### React Native (Expo)
+```bash
+docker compose up -d db
+```
+
+```bash
+cd nikkake_api && bin/rails db:prepare && bin/rails s
+```
+
+`docker compose up` で API ごと立てることもできます。Postgres は開発・CI・本番で
+メジャーバージョンを揃えてください（16）。
+
+### Web (PC/SP)
+
+```bash
+npm install && npm run web:dev
+```
+
+### React Native
 
 ```bash
 cd nikkake_react_native && npm install && npm run web
 ```
 
-### Flutter
+サーバに繋ぐ場合:
+
+```bash
+cd nikkake_react_native && EXPO_PUBLIC_BACKEND=server npm run web
+```
+
+`EXPO_PUBLIC_BACKEND` を省くと `local`（端末のみ、ネットワーク不使用）で動きます。
+移行中は両モードを維持し、同じ E2E スイートが両方で通ることを
+挙動が変わっていないことの証明にしています。
+
+### Flutter / Kotlin Multiplatform
 
 ```bash
 cd nikkake_flutter && flutter pub get && flutter run
 ```
 
-### Kotlin Multiplatform（デスクトップで確認するのが一番速い）
-
 ```bash
 cd nikkake_kmp && ./gradlew :desktopApp:run
 ```
 
-KMPのビルドには JDK 17 が必要です。Androidターゲットをビルドする場合は `local.properties` に
-`sdk.dir=/path/to/Android/sdk` を書くか、`ANDROID_HOME` を設定してください。
+KMP のビルドには JDK 17 が必要です。Android をビルドするなら
+`local.properties` に `sdk.dir=...` を書くか `ANDROID_HOME` を設定してください。
 
 ## テストを全部走らせる
+
+```bash
+npm run verify:contract
+```
+
+```bash
+cd nikkake_api && bundle exec rspec
+```
 
 ```bash
 cd nikkake_react_native && npm run verify
@@ -69,7 +137,10 @@ cd nikkake_kmp && ./gradlew :shared:desktopTest
 
 ## データはどこにあるか
 
-- **既定**: 端末のローカルストレージのみ（RN: AsyncStorage / Flutter: SharedPreferences / KMP: SharedPreferences・NSUserDefaults・java.util.prefs）
-- **サインイン時**: 上記に加えて Supabase へ複製。ローカルが常に正で、クラウドはバックアップ先
+- **サーバ登録前**: 端末のローカルストレージのみ
+- **登録後**: PostgreSQL が正。端末は読みキャッシュと、送信待ちの記録を持つ
+
+記録（ワークアウト）は圏外でもキューに積まれ、復帰時に送られます。
+ルーティンの作成・編集はオンラインが必要です。
 
 詳細は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) を参照。
