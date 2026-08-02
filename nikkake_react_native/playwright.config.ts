@@ -32,8 +32,15 @@ export default defineConfig({
 
   webServer: {
     command: 'npx expo start --web --port 8081',
+    // EXPO_PUBLIC_* はバンドル時に埋め込まれるので、
+    // 同じスイートを local / server 両モードで走らせるにはここで渡す必要がある
+    env: {
+      EXPO_PUBLIC_BACKEND: process.env.EXPO_PUBLIC_BACKEND ?? 'local',
+      EXPO_PUBLIC_API_ENDPOINT:
+        process.env.EXPO_PUBLIC_API_ENDPOINT ?? 'http://localhost:3000/graphql',
+    },
     url: 'http://localhost:8081',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 300_000,
     stdout: 'ignore',
     stderr: 'pipe',

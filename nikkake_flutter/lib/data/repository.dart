@@ -110,9 +110,16 @@ class Repository {
     return missing.length;
   }
 
+  /// 初期ルーティンのIDは端末ごとに採番する（固定値にしない）。
+  ///
+  /// ローカルだけで完結していた頃は固定でも無害だったが、
+  /// サーバへ預ける今は全端末が同じIDを送ることになり、
+  /// 主キー衝突で2人目以降の初期ルーティンが黙って消える。
   Future<void> _createStarterRoutine() async {
+    final routineId = LocalDb.newId();
+
     await db.insert(Collections.routines, {
-      'id': starterRoutineId,
+      'id': routineId,
       'user_id': null,
       'name': starterRoutineName,
       'description': '器具なしで今すぐ始められる基本メニューです。自由に編集してください。',
@@ -131,7 +138,7 @@ class Repository {
       Collections.routineExercises,
       starterRoutineExercises.map((e) {
         final row = {
-          'routine_id': starterRoutineId,
+          'routine_id': routineId,
           'exercise_id': e.exerciseId,
           'sort_order': index,
           'target_sets': e.sets,

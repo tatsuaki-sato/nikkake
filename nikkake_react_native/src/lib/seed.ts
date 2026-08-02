@@ -1,7 +1,7 @@
 import { COLLECTIONS, getMeta, setMeta, insertMany, listRaw, insert } from './localDb';
 import { PRESET_EXERCISES, STARTER_ROUTINE } from '../constants/exercises';
 import { Exercise, Routine, RoutineExercise } from '../../types';
-import { nowIso } from './id';
+import { nowIso, uuid } from './id';
 
 /**
  * 初回起動時のデータ投入。
@@ -49,11 +49,19 @@ export const syncPresetExercises = async (): Promise<number> => {
   return missing.length;
 };
 
+/**
+ * 初期ルーティンのIDは端末ごとに採番する（固定値にしない）。
+ *
+ * ローカルだけで完結していた頃は固定でも無害だったが、
+ * サーバへ預ける今は全端末が同じIDを送ることになり、
+ * 主キー衝突で2人目以降の初期ルーティンが黙って消える。
+ */
 const createStarterRoutine = async (): Promise<void> => {
   const timestamp = nowIso();
+  const routineId = uuid();
 
   await insert<Routine>(COLLECTIONS.routines, {
-    id: STARTER_ROUTINE.id,
+    id: routineId,
     user_id: null,
     name: STARTER_ROUTINE.name,
     description: '器具なしで今すぐ始められる基本メニューです。自由に編集してください。',
@@ -71,7 +79,7 @@ const createStarterRoutine = async (): Promise<void> => {
   await insertMany<RoutineExercise>(
     COLLECTIONS.routineExercises,
     STARTER_ROUTINE.exercises.map((e, index) => ({
-      routine_id: STARTER_ROUTINE.id,
+      routine_id: routineId,
       exercise_id: e.exerciseId,
       sort_order: index,
       target_sets: e.sets,

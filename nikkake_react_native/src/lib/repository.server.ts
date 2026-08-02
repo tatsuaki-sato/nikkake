@@ -1,6 +1,8 @@
 import { NikkakeApi } from '@nikkake/api-client';
 import { API_ENDPOINT } from '../config';
 import { nativeStore } from './nativeStore';
+import { COLLECTIONS, listRaw, resetDatabase } from './localDb';
+import { seedIfNeeded } from './seed';
 import { getDateString } from './utils';
 import { uuid } from './id';
 import type {
@@ -13,7 +15,7 @@ import type {
   WorkoutSet,
   WorkoutSummary,
 } from '../../types';
-import type { RoutineInput } from './repository.local';
+import type { DataCounts, RoutineInput } from './repository.local';
 import type {
   ApiExercise,
   ApiRoutine,
@@ -335,6 +337,34 @@ export const saveWorkout = async (input: SaveWorkoutInput): Promise<WorkoutSumma
           ? 'completed'
           : 'partial',
   };
+};
+
+// ==============================
+// アカウントとデータ
+// ==============================
+
+export const getCounts = async (): Promise<DataCounts> => {
+  const viewer = await api.viewer();
+  return viewer.counts;
+};
+
+/**
+ * サーバ上のデータを全部消して初期状態に戻す。
+ *
+ * 端末側も一緒に消して作り直す。サーバだけ消すと、
+ * 次の起動で端末のコピーが預け直されて復活してしまう。
+ */
+export const resetData = async (): Promise<void> => {
+  await api.resetData();
+
+  await resetDatabase();
+  await seedIfNeeded();
+
+  // 作り直した初期ルーティンを預け直す
+  await api.importSnapshot({
+    routines: await listRaw(COLLECTIONS.routines),
+    routineExercises: await listRaw(COLLECTIONS.routineExercises),
+  });
 };
 
 // ==============================

@@ -51,7 +51,7 @@ describe('ホーム', () => {
     const home = await getHome();
 
     expect(home.today).toBe(getDateString());
-    expect(home.due.map(i => i.routine.id)).toContain(STARTER_ROUTINE.id);
+    expect(home.due.map(i => i.routine.name)).toContain(STARTER_ROUTINE.name);
     expect(home.completed).toHaveLength(0);
     expect(home.streak.current).toBe(0);
   });

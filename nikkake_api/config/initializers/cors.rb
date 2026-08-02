@@ -1,16 +1,19 @@
-# Be sure to restart your server when you modify this file.
+# frozen_string_literal: true
 
-# Avoid CORS issues when API is called from the frontend app.
-# Handle Cross-Origin Resource Sharing (CORS) in order to accept cross-origin Ajax requests.
-
-# Read more: https://github.com/cyu/rack-cors
-
-# Rails.application.config.middleware.insert_before 0, Rack::Cors do
-#   allow do
-#     origins "example.com"
+# ブラウザから直接叩かれるのは開発時の Expo Web だけ。
+# 本番の Web は Vite / 配信元が同一オリジンでプロキシするので CORS は要らない。
+# ネイティブ（RN / Flutter / KMP）はブラウザではないので無関係。
 #
-#     resource "*",
-#       headers: :any,
-#       methods: [:get, :post, :put, :patch, :delete, :options, :head]
-#   end
-# end
+# 許可オリジンは環境変数で明示する。ワイルドカードにはしない。
+# credentials: true と "*" は併用できないうえ、
+# トークンを Cookie で持つ経路がある以上、緩めると素通しになる。
+allowed = ENV.fetch("CORS_ORIGINS", "").split(",").map(&:strip).reject(&:empty?)
+
+if allowed.any?
+  Rails.application.config.middleware.insert_before 0, Rack::Cors do
+    allow do
+      origins(*allowed)
+      resource "/graphql", headers: :any, methods: [ :post, :options ], credentials: true
+    end
+  end
+end

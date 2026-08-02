@@ -1,7 +1,6 @@
 package com.myapplication.common.data
 
 import com.myapplication.common.constants.DEFAULT_REST_SEC
-import com.myapplication.common.constants.STARTER_ROUTINE_ID
 import com.myapplication.common.constants.STARTER_ROUTINE_NAME
 import com.myapplication.common.constants.presetExercises
 import com.myapplication.common.constants.routineColors
@@ -95,14 +94,22 @@ class Repository(val db: LocalDb) {
         return missing.size
     }
 
+    /**
+     * 初期ルーティンのIDは端末ごとに採番する（固定値にしない）。
+     *
+     * ローカルだけで完結していた頃は固定でも無害だったが、
+     * サーバへ預ける今は全端末が同じIDを送ることになり、
+     * 主キー衝突で2人目以降の初期ルーティンが黙って消える。
+     */
     private fun createStarterRoutine() {
         val timestamp = nowIso()
+        val routineId = Uuid.v4()
 
         db.insert(
             Collections.ROUTINES,
             Routine.serializer(),
             Routine(
-                id = STARTER_ROUTINE_ID,
+                id = routineId,
                 name = STARTER_ROUTINE_NAME,
                 description = "器具なしで今すぐ始められる基本メニューです。自由に編集してください。",
                 color = routineColors.first(),
@@ -119,7 +126,7 @@ class Repository(val db: LocalDb) {
             starterRoutineExercises.mapIndexed { index, e ->
                 RoutineExercise(
                     id = Uuid.v4(),
-                    routineId = STARTER_ROUTINE_ID,
+                    routineId = routineId,
                     exerciseId = e.exerciseId,
                     sortOrder = index,
                     targetSets = e.sets,

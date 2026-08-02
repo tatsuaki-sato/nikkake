@@ -1,0 +1,48 @@
+# ローカル開発と CI 用。本番では使わない。
+#
+# 本番は nikkake_api/Dockerfile を Render / Railway / Fly / VPS が
+# そのまま受け取る形にしてある。移す時に必要なのは
+# DATABASE_URL と RAILS_MASTER_KEY の設定とマイグレーションだけ。
+#
+#   docker compose up -d db     … Postgres だけ立てる（普段はこれで足りる）
+#   docker compose up           … API も一緒に立てる
+services:
+  db:
+    # 開発・CI・本番でメジャーバージョンを揃えること。
+    # 揃えないと部分インデックスや配列型の挙動差で、本番でだけ落ちる
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nikkake
+      POSTGRES_PASSWORD: nikkake
+      POSTGRES_DB: nikkake_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nikkake"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./nikkake_api
+      # 本番用の Dockerfile をそのまま使い、開発向けの差分は環境変数だけにする。
+      # 開発専用の Dockerfile を分けると、本番でだけ壊れる余地が生まれる
+      args:
+        RAILS_ENV: development
+    environment:
+      RAILS_ENV: development
+      DATABASE_URL: postgres://nikkake:nikkake@db:5432/nikkake_development
+      # Expo Web(8081) と Vite(5173) からブラウザで直接叩くため
+      CORS_ORIGINS: http://localhost:8081,http://localhost:5173
+      RAILS_LOG_TO_STDOUT: "1"
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:

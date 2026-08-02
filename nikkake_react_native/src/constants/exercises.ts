@@ -75,7 +75,6 @@ export const ROUTINE_COLORS = ['#6C5CE7', '#00B894', '#0984E3', '#D63031', '#FDC
  * 器具なしで自宅でできる種目だけで構成する。
  */
 export const STARTER_ROUTINE = {
-  id: '00000000-0000-4000-8000-000000009001',
   name: 'いつものルーティン',
   icon: '💪',
   color: '#6C5CE7',

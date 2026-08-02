@@ -5,6 +5,14 @@ import 'package:nikkake_flutter/data/local_db.dart';
 import 'package:nikkake_flutter/data/local_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// 初期ルーティンのIDは端末ごとに採番されるので、キーを直書きできない。
+/// 一覧に出ている該当のボタンを、接頭辞で1件だけ拾う。
+Finder routineActionButton(String action) => find.byWidgetPredicate(
+      (w) => w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('routine-$action-'),
+      description: 'routine-$action-*',
+    );
+
 /// アプリ全体を通すシナリオ。
 ///
 /// `flutter test`（ヘッドレスなウィジェットテスト）と
@@ -178,7 +186,7 @@ void registerScenarios() {
       await pumpApp(tester);
       await openTab(tester, 'ルーティン');
 
-      await tester.tap(find.byKey(const Key('routine-edit-00000000-0000-4000-8000-000000009001')));
+      await tester.tap(routineActionButton('edit'));
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byKey(const Key('routine-name-input')), '朝の全身メニュー');
@@ -193,7 +201,7 @@ void registerScenarios() {
       await pumpApp(tester);
       await openTab(tester, 'ルーティン');
 
-      await tester.tap(find.byKey(const Key('routine-delete-00000000-0000-4000-8000-000000009001')));
+      await tester.tap(routineActionButton('delete'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('confirm-action')));
@@ -207,7 +215,7 @@ void registerScenarios() {
       await pumpApp(tester);
       await openTab(tester, 'ルーティン');
 
-      await tester.tap(find.byKey(const Key('routine-toggle-00000000-0000-4000-8000-000000009001')));
+      await tester.tap(routineActionButton('toggle'));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('停止中'), findsOneWidget);

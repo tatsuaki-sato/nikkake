@@ -4,9 +4,7 @@ import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../constants/colors';
 import { useAuthStore } from '../../stores/authStore';
-import { getLocalCounts, getPendingCount } from '../../lib/sync';
-import { resetDatabase } from '../../lib/localDb';
-import { seedIfNeeded } from '../../lib/seed';
+import { getCounts, pendingCount as getPendingCount, resetData } from '../../lib/repository';
 import { Button, Card, Divider, SectionTitle, Spacing, Radius } from '../../components/ui';
 
 /**
@@ -21,14 +19,19 @@ export default function SettingsScreen() {
   const queryClient = useQueryClient();
   const { user, mode, sync, signOut, syncNow } = useAuthStore();
 
-  const countsQuery = useQuery({ queryKey: ['localCounts'], queryFn: getLocalCounts });
+  const countsQuery = useQuery({ queryKey: ['counts'], queryFn: getCounts });
   const pendingQuery = useQuery({
     queryKey: ['pendingCount', sync.lastSyncedAt],
     queryFn: getPendingCount,
     enabled: mode === 'cloud',
   });
 
-  const counts = countsQuery.data ?? {};
+  const counts = countsQuery.data ?? {
+    routines: 0,
+    exercises: 0,
+    routineLogs: 0,
+    exerciseLogs: 0,
+  };
 
   const handleSignOut = () => {
     const doSignOut = async () => {
@@ -53,8 +56,7 @@ export default function SettingsScreen() {
 
   const handleReset = () => {
     const doReset = async () => {
-      await resetDatabase();
-      await seedIfNeeded();
+      await resetData();
       await queryClient.invalidateQueries();
     };
 
@@ -159,10 +161,10 @@ export default function SettingsScreen() {
 
       <SectionTitle style={styles.sectionSpacing}>保存されているデータ</SectionTitle>
       <Card testID="settings-counts">
-        <CountRow label="ルーティン" value={counts.routines ?? 0} testID="count-routines" />
-        <CountRow label="種目" value={counts.exercises ?? 0} testID="count-exercises" />
-        <CountRow label="ワークアウト記録" value={counts.routine_logs ?? 0} testID="count-logs" />
-        <CountRow label="セット記録" value={counts.exercise_logs ?? 0} testID="count-sets" />
+        <CountRow label="ルーティン" value={counts.routines} testID="count-routines" />
+        <CountRow label="種目" value={counts.exercises} testID="count-exercises" />
+        <CountRow label="ワークアウト記録" value={counts.routineLogs} testID="count-logs" />
+        <CountRow label="セット記録" value={counts.exerciseLogs} testID="count-sets" />
       </Card>
 
       <SectionTitle style={styles.sectionSpacing}>アプリについて</SectionTitle>

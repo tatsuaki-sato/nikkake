@@ -94,7 +94,6 @@ class StarterExercise {
 
 /// 初回起動時に自動で入るルーティン。
 /// 「アプリを開いた瞬間に、いつものルーティンが始められる」状態にするためのもの。
-const starterRoutineId = '00000000-0000-4000-8000-000000009001';
 const starterRoutineName = 'いつものルーティン';
 
 const starterRoutineExercises = <StarterExercise>[

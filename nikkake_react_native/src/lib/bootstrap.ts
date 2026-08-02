@@ -2,6 +2,7 @@ import { COLLECTIONS, getMeta, listRaw, setMeta } from './localDb';
 import { seedIfNeeded } from './seed';
 import { hydrateNativeStore } from './nativeStore';
 import { isServerBackend } from '../config';
+import { markServerReady } from './session';
 
 /**
  * 起動処理。
@@ -52,7 +53,20 @@ export const registerInBackground = async (): Promise<RegistrationResult> => {
     const token = await api.ensureSession();
     if (!token) return nothingDone;
 
-    const imported = await importLocalSnapshotOnce();
+    const imported = await importLocalSnapshot();
+
+    // ここから先はサーバが真実の源。画面のキャッシュを捨てさせる
+    markServerReady();
+
+    // 切り替えの直前に端末へ書かれた分を拾う。
+    //
+    // 登録が終わる前でもユーザーは操作できる（それがこの設計の目的）ので、
+    // 1回目の預け入れとサーバ切り替えのあいだに書かれた記録は
+    // どちらにも属さないまま取り残される。
+    // ID は端末生成で ON CONFLICT DO NOTHING に吸収されるため、
+    // もう一度送るのは安全で、これで隙間が閉じる。
+    await Promise.resolve();
+    await importLocalSnapshot({ force: true });
 
     // 圏外中に溜まった記録を送る
     void api.flushQueue();
@@ -65,13 +79,18 @@ export const registerInBackground = async (): Promise<RegistrationResult> => {
 };
 
 /**
- * 端末のデータをサーバへ預ける。成功したら二度と送らない。
- * 以降の書き込みはサーバが正になるので、繰り返すと
- * サーバ側で消したはずのルーティンが端末のコピーから復活してしまう。
+ * 端末のデータをサーバへ預ける。
+ *
+ * 起動のたびに送ってはいけない。以降の書き込みはサーバが正になるので、
+ * 繰り返すとサーバ側で消したはずのルーティンが端末のコピーから復活する。
+ * だから初回だけ送り、印を meta に残す。
+ *
+ * force は「同じ起動の中でもう一度だけ送る」ためのもの
+ * （切り替え直前の書き込みを拾う用途）。
  */
-const importLocalSnapshotOnce = async (): Promise<boolean> => {
+const importLocalSnapshot = async ({ force = false } = {}): Promise<boolean> => {
   const meta = await getMeta();
-  if (meta[IMPORTED_KEY]) return false;
+  if (meta[IMPORTED_KEY] && !force) return false;
 
   const { api } = await import('./repository.server');
 

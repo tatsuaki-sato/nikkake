@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/authStore';
 import { setupNotificationHandler } from '../lib/notifications';
 import { prepareLocalData, registerInBackground } from '../lib/bootstrap';
+import { onServerReady } from '../lib/session';
 import { Colors } from '../constants/colors';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -42,7 +43,14 @@ export default function RootLayout() {
       setupNotificationHandler();
     };
 
+    // 登録が終わるとデータ元がローカルからサーバへ切り替わる。
+    // 表示中のキャッシュはローカル由来なので捨てる
+    const unsubscribe = onServerReady(() => {
+      void queryClient.invalidateQueries();
+    });
+
     void start();
+    return unsubscribe;
   }, [initializeAuth]);
 
   useEffect(() => {

@@ -81,7 +81,6 @@ data class StarterExercise(
  * 初回起動時に自動で入るルーティン。
  * 「アプリを開いた瞬間に、いつものルーティンが始められる」状態にするためのもの。
  */
-const val STARTER_ROUTINE_ID = "00000000-0000-4000-8000-000000009001"
 const val STARTER_ROUTINE_NAME = "いつものルーティン"
 
 val starterRoutineExercises = listOf(

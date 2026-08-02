@@ -1,5 +1,6 @@
 import {
   COLLECTIONS,
+  resetDatabase,
   list,
   find,
   where,
@@ -10,6 +11,7 @@ import {
   softDeleteWhere,
 } from './localDb';
 import { uuid, nowIso } from './id';
+import { seedIfNeeded } from './seed';
 import { getDateString, formatFrequency, formatPreviousSets, isRoutineDueToday } from './utils';
 import {
   calculateDailyStats,
@@ -587,6 +589,36 @@ export const getWorkoutSession = async (routineId: string): Promise<WorkoutSessi
       };
     }),
   };
+};
+
+export interface DataCounts {
+  routines: number;
+  exercises: number;
+  routineLogs: number;
+  exerciseLogs: number;
+}
+
+/** 設定画面に出す保存件数 */
+export const getCounts = async (): Promise<DataCounts> => {
+  const [routines, exercises, routineLogs, exerciseLogs] = await Promise.all([
+    list(COLLECTIONS.routines),
+    list(COLLECTIONS.exercises),
+    list(COLLECTIONS.routineLogs),
+    list(COLLECTIONS.exerciseLogs),
+  ]);
+
+  return {
+    routines: routines.length,
+    exercises: exercises.length,
+    routineLogs: routineLogs.length,
+    exerciseLogs: exerciseLogs.length,
+  };
+};
+
+/** 全部消して初期状態に戻す。取り消せない */
+export const resetData = async (): Promise<void> => {
+  await resetDatabase();
+  await seedIfNeeded();
 };
 
 /** サーバモードにしかない概念。ローカルでは常に「送信済み扱い」 */
