@@ -79,6 +79,14 @@ kotlin {
                 implementation(compose.desktop.common)
             }
         }
+        // 契約テスト(packages/contract/domain_cases.json)はファイル読み込みが要るので
+        // commonTest ではなく JVM 側に置く
+        val desktopTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+            }
+        }
     }
 }
 
@@ -100,4 +108,10 @@ android {
     kotlin {
         jvmToolchain(17)
     }
+}
+
+// 契約テストは packages/contract/ を読む。
+// テストの作業ディレクトリはモジュール直下なので、絶対パスをシステムプロパティで渡す。
+tasks.withType<Test>().configureEach {
+    systemProperty("nikkake.contractDir", rootProject.projectDir.parentFile.resolve("packages/contract").absolutePath)
 }
