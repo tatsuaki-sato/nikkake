@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { uuid } from '@nikkake/domain';
 import type { Exercise, FrequencyType, RoutineExerciseInput } from '@nikkake/api-client';
+import { OFFLINE_SAVE_MESSAGE, isNetworkError } from '@nikkake/api-client';
 import { api } from '../lib';
 import { Button, Card, Chip, ErrorText, Loading } from '../components/ui';
 
@@ -80,19 +81,28 @@ export const RoutineForm = ({ routineId, onDone }: {
       exercises: rows.map(({ name: _n, icon: _i, ...rest }) => rest),
     };
 
-    // 入力検証はサーバが行う。文言が docs/FEATURES.md の仕様なので二重に持たない
-    const result = isEdit
-      ? await api.updateRoutine({ ...input, id: routineId!, lockVersion: routineQuery.data!.lockVersion })
-      : await api.createRoutine(input);
+    try {
+      // 入力検証はサーバが行う。文言が docs/FEATURES.md の仕様なので二重に持たない
+      const result = isEdit
+        ? await api.updateRoutine({ ...input, id: routineId!, lockVersion: routineQuery.data!.lockVersion })
+        : await api.createRoutine(input);
 
-    setSaving(false);
+      if (result.userErrors.length > 0) {
+        setError(result.userErrors[0].message);
+        return;
+      }
 
-    if (result.userErrors.length > 0) {
-      setError(result.userErrors[0].message);
-      return;
+      await qc.invalidateQueries();
+      onDone();
+    } catch (e) {
+      // 圏外でルーティンを作れると、サーバの採番や検証を通っていない
+      // ルーティンに対して記録が積まれ、整合を取る手段が無くなる。
+      // 保存させずに、電波が戻ってからやり直してもらう
+      setError(isNetworkError(e) ? OFFLINE_SAVE_MESSAGE : '保存に失敗しました');
+    } finally {
+      // catch が無いと圏外のとき「保存中…」のまま固まる
+      setSaving(false);
     }
-    await qc.invalidateQueries();
-    onDone();
   };
 
   const addExercise = (e: Exercise) => {

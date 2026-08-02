@@ -7,7 +7,8 @@ import { defineConfig, devices } from '@playwright/test';
  *   cd nikkake_api && bin/rails s -p 3000
  *
  * Vite は webServer が自動で起動し、/graphql を Rails へプロキシする。
- * 同一オリジン扱いになるので httpOnly Cookie がそのまま効き、CORS も要らない。
+ * 同一オリジン扱いになるので CORS が要らない。
+ * （httpOnly Cookie への移行は未実装。いまはトークンを localStorage に置いている）
  */
 export default defineConfig({
   testDir: './e2e',

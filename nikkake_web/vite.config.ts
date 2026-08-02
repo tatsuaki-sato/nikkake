@@ -5,8 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    // Rails を別ポートで動かし、同一オリジン扱いにする。
-    // こうすると httpOnly Cookie がそのまま効き、CORS も要らない。
+    // Rails を別ポートで動かし、同一オリジン扱いにする。CORS が要らなくなる。
+    // （httpOnly Cookie への移行は未実装。いまはトークンを localStorage に置いている）
     proxy: {
       '/graphql': { target: 'http://localhost:3000', changeOrigin: true },
     },

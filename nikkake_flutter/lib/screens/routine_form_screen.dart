@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../constants/colors.dart';
 import '../constants/exercises.dart';
+import '../data/graphql_client.dart';
 import '../data/nikkake_repository.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
@@ -161,10 +162,25 @@ class _RoutineFormScreenState extends State<RoutineFormScreen> {
     );
 
     final state = context.read<AppState>();
-    if (widget.isEdit) {
-      await state.updateRoutine(widget.routineId!, input);
-    } else {
-      await state.createRoutine(input);
+
+    try {
+      if (widget.isEdit) {
+        await state.updateRoutine(widget.routineId!, input);
+      } else {
+        await state.createRoutine(input);
+      }
+    } catch (e) {
+      // 圏外でルーティンを作れると、サーバの採番や検証を通っていない
+      // ルーティンに対して記録が積まれ、整合を取る手段が無くなる。
+      // 保存させずに、電波が戻ってからやり直してもらう
+      if (!mounted) return;
+      setState(() {
+        _error = e is NetworkFailure
+            ? offlineSaveMessage
+            : (e is PermanentFailure ? e.message : '保存に失敗しました');
+        _saving = false;
+      });
+      return;
     }
 
     if (mounted) Navigator.of(context).pop();

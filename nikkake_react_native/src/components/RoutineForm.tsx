@@ -5,6 +5,7 @@ import { ROUTINE_COLORS, ROUTINE_ICONS, DEFAULT_REST_SEC } from '../constants/ex
 import { Button, Card, ErrorText, Label, Spacing, Radius } from './ui';
 import { Exercise, ExerciseCategory, FrequencyType, RoutineWithExercises } from '../../types';
 import { RoutineExerciseInput, RoutineInput } from '../lib/repository';
+import { OFFLINE_SAVE_MESSAGE, isNetworkError } from '@nikkake/api-client';
 
 /**
  * ルーティンの作成と編集で共通のフォーム。
@@ -141,7 +142,14 @@ export const RoutineForm: React.FC<RoutineFormProps> = ({
         exercises: rows.map(({ key, name: _n, icon: _i, ...rest }) => rest),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存に失敗しました');
+      // 圏外でルーティンを作れると、サーバの採番や検証を通っていない
+      // ルーティンに対して記録が積まれ、整合を取る手段が無くなる。
+      // 保存させずに、電波が戻ってからやり直してもらう
+      setError(
+        isNetworkError(e) ? OFFLINE_SAVE_MESSAGE
+          : e instanceof Error ? e.message
+          : '保存に失敗しました'
+      );
     } finally {
       setSaving(false);
     }

@@ -10,6 +10,12 @@ import 'time_zone.dart';
 /// 正規化キャッシュも購読も使わないので、素のPOSTで足りる。
 /// 依存が1つ減るぶん、Dartのバージョン追従で壊れる余地も減る。
 
+/// 圏外のときに保存系の画面へ出す文言。
+///
+/// 端末の接続状態フラグでは判定しない。Wi-Fi に繋がっていてもサーバへ届かないことがあり、
+/// 逆に「圏外」でも届くことがある。実際に送ってみた結果で判断する。
+const offlineSaveMessage = 'オフラインのため保存できません。電波のあるところで試してください。';
+
 /// ネットワークが原因の失敗。再送する価値がある
 class NetworkFailure implements Exception {
   const NetworkFailure(this.message);

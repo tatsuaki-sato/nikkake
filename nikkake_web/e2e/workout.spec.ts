@@ -148,3 +148,40 @@ test.describe('オフライン記録', () => {
     expect(remaining).toBe(0);
   });
 });
+
+/**
+ * オフラインで何ができて何ができないか。
+ *
+ * 記録はできる（キューに積む）が、ルーティンの作成・編集はできない。
+ * 圏外で作れると、サーバの採番や検証を通っていないルーティンに対して
+ * 記録が積まれ、整合を取る手段が無くなるため。
+ * これは移行で失った機能なので、仕様として固定しておく。
+ */
+test.describe('オフラインでのルーティン作成', () => {
+  test('圏外では保存できず、理由が出る。入力は消えない', async ({ page, context }) => {
+    await freshVisit(page);
+
+    await openTab(page, 'ルーティン');
+    await page.getByTestId('routines-fab').click();
+    await page.getByTestId('routine-name-input').fill('圏外で作ろうとしたルーティン');
+    await page.getByTestId('add-exercise-button').click();
+    await page.getByTestId('exercise-picker').getByText('スクワット').first().click();
+
+    await context.setOffline(true);
+    await page.getByTestId('routine-submit').click();
+
+    await expect(page.getByTestId('error-message')).toContainText('オフラインのため保存できません');
+
+    // 保存ボタンが押せる状態に戻っていること（「保存中…」で固まらない）
+    await expect(page.getByTestId('routine-submit')).toBeEnabled();
+    // 入力し直しにならないこと
+    await expect(page.getByTestId('routine-name-input')).toHaveValue('圏外で作ろうとしたルーティン');
+
+    // 復帰したら保存できる
+    await context.setOffline(false);
+    await page.getByTestId('routine-submit').click();
+
+    await expect(page.getByTestId('routines-screen')).toContainText('圏外で作ろうとしたルーティン');
+  });
+});
+

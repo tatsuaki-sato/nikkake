@@ -147,17 +147,25 @@ jobs:
           working-directory: nikkake_api
           bundler-cache: true
       - run: npm ci
-      - name: Rails を立てる
-        working-directory: nikkake_api
+      - working-directory: nikkake_api
         run: |
           bin/rails db:prepare
           bin/rails runner 'PresetSyncer.call'
-          bin/rails s -p 3000 -b 127.0.0.1 &
-          npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000 || sleep 10
+
       - run: npx playwright install --with-deps chromium
         working-directory: nikkake_web
-      - run: npx playwright test
-        working-directory: nikkake_web
+
+      # Rails の起動とテストは同じステップにする。
+      # ステップを分けるとバックグラウンドのプロセスが引き継がれず、
+      # テストだけが理由の分からない失敗をする
+      - name: Rails を立てて E2E
+        run: |
+          (cd nikkake_api && bin/rails s -p 3000 -b 127.0.0.1 &)
+          npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000
+          curl -fsS -X POST http://127.0.0.1:3000/graphql \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"{ __typename }"}'
+          cd nikkake_web && npx playwright test
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -214,18 +222,19 @@ jobs:
         working-directory: nikkake_react_native
         run: npx playwright test --project=chromium
 
-      - name: Rails を立てる
-        working-directory: nikkake_api
+      - working-directory: nikkake_api
         run: |
           bin/rails db:prepare
           bin/rails runner 'PresetSyncer.call'
-          bin/rails s -p 3000 -b 127.0.0.1 &
-          npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000 || sleep 10
-      - name: E2E（サーバモード）
-        working-directory: nikkake_react_native
+
+      # Rails の起動とテストは同じステップにする（web ジョブと同じ理由）
+      - name: Rails を立てて E2E（サーバモード）
         env:
           EXPO_PUBLIC_BACKEND: server
-        run: npx playwright test --project=chromium
+        run: |
+          (cd nikkake_api && bin/rails s -p 3000 -b 127.0.0.1 &)
+          npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000
+          cd nikkake_react_native && npx playwright test --project=chromium
       - name: サーバに実際に届いているか確認する
         run: |
           # E2E が通っても、CORS 設定漏れなどで

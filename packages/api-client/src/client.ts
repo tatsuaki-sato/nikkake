@@ -3,9 +3,13 @@ import { currentTimeZone } from '@nikkake/domain';
 
 export interface ClientOptions {
   endpoint: string;
-  /** ネイティブは Bearer トークン。Web は httpOnly Cookie を使うので null */
+  /**
+   * Bearer トークンを返す。
+   * 当初計画では Web だけ httpOnly Cookie にする予定だったが未実装で、
+   * いまは Web も localStorage のトークンを使っている（docs/QA.md の C3）。
+   */
   getToken?: () => string | null;
-  /** Web で Cookie を送るために必要 */
+  /** Cookie 方式へ移行したときに使う */
   credentials?: RequestCredentials;
 }
 
