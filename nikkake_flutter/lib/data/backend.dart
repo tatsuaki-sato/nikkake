@@ -16,8 +16,10 @@ import 'time_zone.dart';
 /// 「挙動が変わっていない」ことの証明にしている。
 const backend = String.fromEnvironment('BACKEND', defaultValue: 'local');
 
+/// 既定は 127.0.0.1。実機やエミュレータから見るときは
+/// --dart-define=API_ENDPOINT=... で上書きする（端末から見た localhost は端末自身）。
 const apiEndpoint =
-    String.fromEnvironment('API_ENDPOINT', defaultValue: 'http://localhost:3000/graphql');
+    String.fromEnvironment('API_ENDPOINT', defaultValue: 'http://127.0.0.1:3000/graphql');
 
 bool get isServerBackend => backend == 'server';
 

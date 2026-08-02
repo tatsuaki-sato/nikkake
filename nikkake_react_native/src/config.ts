@@ -13,7 +13,12 @@ export type BackendMode = 'local' | 'server';
 export const BACKEND: BackendMode =
   (process.env.EXPO_PUBLIC_BACKEND as BackendMode | undefined) ?? 'local';
 
+/**
+ * 既定は 127.0.0.1。localhost にしないのは、Linux + Node 18以降だと
+ * ::1 に解決されることがあり、IPv4 だけで待っている Rails に届かないため。
+ * 実機やエミュレータから見るときは EXPO_PUBLIC_API_ENDPOINT で上書きする。
+ */
 export const API_ENDPOINT: string =
-  process.env.EXPO_PUBLIC_API_ENDPOINT ?? 'http://localhost:3000/graphql';
+  process.env.EXPO_PUBLIC_API_ENDPOINT ?? 'http://127.0.0.1:3000/graphql';
 
 export const isServerBackend = () => BACKEND === 'server';

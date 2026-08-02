@@ -123,6 +123,10 @@ jobs:
       # Vite の dev サーバが /graphql をプロキシするので CORS は要らないが、
       # 設定漏れで「黙ってローカルモードのまま通る」事故を避けるため明示する
       CORS_ORIGINS: http://localhost:5173
+      # E2E は1テストごとに新しい匿名アカウントを作るので、
+      # 既定の上限（1時間10件）だと制限に当たって落ちる
+      RATE_LIMIT_ANONYMOUS_ACCOUNTS: '10000'
+      RATE_LIMIT_OVERALL: '100000'
     services:
       postgres:
         image: postgres:16-alpine
@@ -160,7 +164,7 @@ jobs:
       # テストだけが理由の分からない失敗をする
       - name: Rails を立てて E2E
         run: |
-          (cd nikkake_api && bin/rails s -p 3000 -b 127.0.0.1 &)
+          (cd nikkake_api && bin/rails s -p 3000 -b 0.0.0.0 &)
           npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000
           curl -fsS -X POST http://127.0.0.1:3000/graphql \
             -H 'Content-Type: application/json' \
@@ -182,6 +186,8 @@ jobs:
       # これを渡し忘れると遅延登録が黙って失敗し、
       # サーバモードのE2Eがローカルモードのまま全部通る（docs/TESTING.md 参照）
       CORS_ORIGINS: http://localhost:8081
+      RATE_LIMIT_ANONYMOUS_ACCOUNTS: '10000'
+      RATE_LIMIT_OVERALL: '100000'
     services:
       postgres:
         image: postgres:16-alpine
@@ -232,7 +238,7 @@ jobs:
         env:
           EXPO_PUBLIC_BACKEND: server
         run: |
-          (cd nikkake_api && bin/rails s -p 3000 -b 127.0.0.1 &)
+          (cd nikkake_api && bin/rails s -p 3000 -b 0.0.0.0 &)
           npx --yes wait-on http://127.0.0.1:3000/up --timeout 60000
           cd nikkake_react_native && npx playwright test --project=chromium
       - name: サーバに実際に届いているか確認する
