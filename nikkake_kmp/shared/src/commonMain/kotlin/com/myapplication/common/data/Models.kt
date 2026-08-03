@@ -8,11 +8,11 @@ import kotlinx.serialization.Serializable
 // ============================================
 //
 // データはすべて端末ローカルが真実の源。サインインしている場合のみ
-// 同じ形のレコードがSupabaseへ複製される。
+// 登録できていれば、同じ形のレコードが Rails へ預けられる。
 // そのため全エンティティが updated_at / deleted_at を持ち、
 // 同期は updated_at による last-write-wins で解決する。
 //
-// @SerialName はSupabaseの列名(snake_case)に合わせてある。
+// @SerialName は Rails の列名(snake_case)に合わせてある。
 // ローカル保存にも同じシリアライズを使うので、同期時の変換が要らない。
 
 /**
@@ -250,11 +250,3 @@ data class OverallStats(
 // ============================================
 
 enum class StorageMode { LOCAL, CLOUD }
-
-enum class SyncStatus { IDLE, SYNCING, ERROR, OFFLINE }
-
-data class SyncState(
-    val status: SyncStatus = SyncStatus.IDLE,
-    val lastSyncedAt: String? = null,
-    val lastError: String? = null,
-)

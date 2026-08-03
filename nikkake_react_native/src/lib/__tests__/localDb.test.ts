@@ -9,8 +9,6 @@ import {
   update,
   softDelete,
   softDeleteWhere,
-  upsertFromRemote,
-  changedSince,
   getMeta,
   setMeta,
   resetDatabase,
@@ -104,58 +102,10 @@ describe('論理削除', () => {
   });
 });
 
-describe('同期のための機能', () => {
-  it('upsertFromRemote は updated_at が新しい方を採用する', async () => {
-    const local = await insert<Routine>(COLLECTIONS.routines, newRoutine('ローカル版'));
-
-    const older = { ...local, name: '古いリモート版', updated_at: '2020-01-01T00:00:00.000Z' };
-    const newer = { ...local, name: '新しいリモート版', updated_at: '2099-01-01T00:00:00.000Z' };
-
-    await upsertFromRemote<Routine>(COLLECTIONS.routines, [older]);
-    expect((await find<Routine>(COLLECTIONS.routines, local.id))?.name).toBe('ローカル版');
-
-    await upsertFromRemote<Routine>(COLLECTIONS.routines, [newer]);
-    expect((await find<Routine>(COLLECTIONS.routines, local.id))?.name).toBe('新しいリモート版');
-  });
-
-  it('upsertFromRemote は未知のIDを挿入し、件数を返す', async () => {
-    const remote = {
-      ...newRoutine('リモート発'),
-      id: 'remote-1',
-      created_at: '2026-01-01T00:00:00.000Z',
-      updated_at: '2026-01-01T00:00:00.000Z',
-      deleted_at: null,
-    } as Routine;
-
-    const result = await upsertFromRemote<Routine>(COLLECTIONS.routines, [remote]);
-
-    expect(result).toEqual({ inserted: 1, updated: 0, skipped: 0 });
-    expect(await list<Routine>(COLLECTIONS.routines)).toHaveLength(1);
-  });
-
-  it('changedSince はカーソル以降に変更された行だけ返す', async () => {
-    await insert<Routine>(COLLECTIONS.routines, newRoutine('古い'));
-    const cursor = new Date().toISOString();
-    await new Promise(r => setTimeout(r, 5));
-    await insert<Routine>(COLLECTIONS.routines, newRoutine('新しい'));
-
-    const changed = await changedSince<Routine>(COLLECTIONS.routines, cursor);
-
-    expect(changed).toHaveLength(1);
-    expect(changed[0].name).toBe('新しい');
-  });
-
-  it('カーソルがnullなら全件が対象（初回同期）', async () => {
-    await insertMany<Routine>(COLLECTIONS.routines, [newRoutine('A'), newRoutine('B')]);
-    expect(await changedSince<Routine>(COLLECTIONS.routines, null)).toHaveLength(2);
-  });
-});
-
 describe('メタ情報', () => {
   it('初期値を返し、部分更新できる', async () => {
     const meta = await getMeta();
     expect(meta.seeded).toBe(false);
-    expect(meta.lastSyncedAt).toBeNull();
 
     await setMeta({ seeded: true });
     const updated = await getMeta();

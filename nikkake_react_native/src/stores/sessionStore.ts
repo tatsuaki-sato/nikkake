@@ -36,7 +36,7 @@ interface SessionStoreState {
   flushNow: () => Promise<void>;
 }
 
-/** ローカルモードでは api を読み込まない（Supabase 時代と違い import 自体が通信を含まない） */
+/** ローカルモードでは api を読み込まない（サーバへ接続していないあいだは通信を発生させない） */
 const loadApi = async () => (await import('../lib/repository.server')).api;
 
 export const useSessionStore = create<SessionStoreState>((set, get) => ({

@@ -101,60 +101,10 @@ void main() {
     });
   });
 
-  group('同期のための機能', () {
-    test('upsertFromRemote は updated_at が新しい方を採用する', () async {
-      final local = await db.insert(Collections.routines, newRoutine('ローカル版'));
-
-      await db.upsertFromRemote(Collections.routines, [
-        {...local, 'name': '古いリモート版', 'updated_at': '2020-01-01T00:00:00.000Z'},
-      ]);
-      expect(db.find(Collections.routines, local['id'] as String)?['name'], 'ローカル版');
-
-      await db.upsertFromRemote(Collections.routines, [
-        {...local, 'name': '新しいリモート版', 'updated_at': '2099-01-01T00:00:00.000Z'},
-      ]);
-      expect(db.find(Collections.routines, local['id'] as String)?['name'], '新しいリモート版');
-    });
-
-    test('upsertFromRemote は未知のIDを挿入し、件数を返す', () async {
-      final result = await db.upsertFromRemote(Collections.routines, [
-        {
-          ...newRoutine('リモート発'),
-          'id': 'remote-1',
-          'created_at': '2026-01-01T00:00:00.000Z',
-          'updated_at': '2026-01-01T00:00:00.000Z',
-          'deleted_at': null,
-        },
-      ]);
-
-      expect(result.inserted, 1);
-      expect(result.updated, 0);
-      expect(db.list(Collections.routines).length, 1);
-    });
-
-    test('changedSince はカーソル以降に変更された行だけ返す', () async {
-      await db.insert(Collections.routines, newRoutine('古い'));
-      final cursor = DateTime.now().toUtc();
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      await db.insert(Collections.routines, newRoutine('新しい'));
-
-      final changed = db.changedSince(Collections.routines, cursor);
-
-      expect(changed.length, 1);
-      expect(changed.first['name'], '新しい');
-    });
-
-    test('カーソルがnullなら全件が対象（初回同期）', () async {
-      await db.insertMany(Collections.routines, [newRoutine('A'), newRoutine('B')]);
-      expect(db.changedSince(Collections.routines, null).length, 2);
-    });
-  });
-
   group('メタ情報', () {
     test('初期値を返し、部分更新できる', () async {
       final meta = db.getMeta();
       expect(meta.seeded, isFalse);
-      expect(meta.lastSyncedAt, isNull);
 
       await db.setMeta(seeded: true);
       final updated = db.getMeta();

@@ -1,7 +1,7 @@
 import 'package:uuid/uuid.dart';
 import 'local_store.dart';
 
-/// ローカルの「テーブル」名。Supabase側のテーブル名と1:1で対応させてあるので、
+/// ローカルの「テーブル」名。Rails 側の列名(snake_case)と1:1で対応させてあるので、
 /// 同期処理は名前をそのまま使ってpush/pullできる。
 class Collections {
   static const exercises = 'exercises';
@@ -17,12 +17,6 @@ class Collections {
 class LocalMeta {
   final int schemaVersion;
   final bool seeded;
-
-  /// 最後にSupabaseと同期できた時刻。pullの差分取得カーソルも兼ねる
-  final DateTime? lastSyncedAt;
-
-  /// 同期先アカウント。別アカウントでサインインしたらカーソルを捨てる
-  final String? syncUserId;
 
   /// サーバが発行したトークン。生の値はここにしか無い。
   /// サインアウトで空文字を入れるので、読むときは空を null と同じに扱う
@@ -41,8 +35,6 @@ class LocalMeta {
   const LocalMeta({
     this.schemaVersion = LocalDb.currentSchemaVersion,
     this.seeded = false,
-    this.lastSyncedAt,
-    this.syncUserId,
     this._apiToken,
     this.snapshotImportedAt,
     this.offlineQueue,
@@ -54,9 +46,6 @@ class LocalMeta {
   factory LocalMeta.fromJson(Map<String, dynamic> json) => LocalMeta(
         schemaVersion: (json['schemaVersion'] as num?)?.toInt() ?? LocalDb.currentSchemaVersion,
         seeded: json['seeded'] as bool? ?? false,
-        lastSyncedAt:
-            json['lastSyncedAt'] == null ? null : DateTime.parse(json['lastSyncedAt'] as String),
-        syncUserId: json['syncUserId'] as String?,
         apiToken: json['apiToken'] as String?,
         snapshotImportedAt: json['snapshotImportedAt'] as String?,
         offlineQueue: json['offlineQueue'] as String?,
@@ -66,8 +55,6 @@ class LocalMeta {
   Map<String, dynamic> toJson() => {
         'schemaVersion': schemaVersion,
         'seeded': seeded,
-        'lastSyncedAt': lastSyncedAt?.toIso8601String(),
-        'syncUserId': syncUserId,
         'apiToken': _apiToken,
         'snapshotImportedAt': snapshotImportedAt,
         'offlineQueue': offlineQueue,
@@ -76,8 +63,6 @@ class LocalMeta {
 
   LocalMeta copyWith({
     bool? seeded,
-    DateTime? lastSyncedAt,
-    String? syncUserId,
     String? apiToken,
     String? snapshotImportedAt,
     String? offlineQueue,
@@ -86,21 +71,11 @@ class LocalMeta {
       LocalMeta(
         schemaVersion: schemaVersion,
         seeded: seeded ?? this.seeded,
-        lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
-        syncUserId: syncUserId ?? this.syncUserId,
         apiToken: apiToken ?? this.apiToken,
         snapshotImportedAt: snapshotImportedAt ?? this.snapshotImportedAt,
         offlineQueue: offlineQueue ?? this.offlineQueue,
         offlineQueueDead: offlineQueueDead ?? this.offlineQueueDead,
       );
-}
-
-class UpsertResult {
-  final int inserted;
-  final int updated;
-  final int skipped;
-
-  const UpsertResult(this.inserted, this.updated, this.skipped);
 }
 
 /// JSONのMapを行として扱う汎用のローカルDB。
@@ -120,8 +95,6 @@ class LocalDb {
 
   Future<LocalMeta> setMeta({
     bool? seeded,
-    DateTime? lastSyncedAt,
-    String? syncUserId,
     String? apiToken,
     String? snapshotImportedAt,
     String? offlineQueue,
@@ -129,8 +102,6 @@ class LocalDb {
   }) async {
     final next = getMeta().copyWith(
       seeded: seeded,
-      lastSyncedAt: lastSyncedAt,
-      syncUserId: syncUserId,
       apiToken: apiToken,
       snapshotImportedAt: snapshotImportedAt,
       offlineQueue: offlineQueue,
@@ -242,51 +213,6 @@ class LocalDb {
 
     if (count > 0) await store.writeCollection(collection, rows);
     return count;
-  }
-
-  /// pull結果の取り込み。updated_atが新しい方を採用する (last-write-wins)
-  Future<UpsertResult> upsertFromRemote(
-    String collection,
-    List<Map<String, dynamic>> remoteRows,
-  ) async {
-    final byId = {for (final r in store.readCollection(collection)) r['id'] as String: r};
-    var inserted = 0;
-    var updated = 0;
-    var skipped = 0;
-
-    for (final remote in remoteRows) {
-      final id = remote['id'] as String;
-      final local = byId[id];
-
-      if (local == null) {
-        byId[id] = remote;
-        inserted++;
-        continue;
-      }
-
-      final remoteAt = DateTime.parse(remote['updated_at'] as String);
-      final localAt = DateTime.parse(local['updated_at'] as String);
-
-      if (remoteAt.isAfter(localAt)) {
-        byId[id] = remote;
-        updated++;
-      } else {
-        skipped++;
-      }
-    }
-
-    await store.writeCollection(collection, byId.values.toList());
-    return UpsertResult(inserted, updated, skipped);
-  }
-
-  /// 前回同期以降に変更された行（push対象）
-  List<Map<String, dynamic>> changedSince(String collection, DateTime? since) {
-    final rows = store.readCollection(collection);
-    if (since == null) return rows;
-
-    return rows
-        .where((r) => DateTime.parse(r['updated_at'] as String).isAfter(since))
-        .toList();
   }
 
   Future<void> reset() => store.clearAll();

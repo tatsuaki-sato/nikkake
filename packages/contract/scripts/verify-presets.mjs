@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * プリセット種目が4か所すべてで一致しているかを検証する。
+ * プリセット種目が3か所すべてで一致しているかを検証する。
  *
  *   packages/contract/preset_exercises.json  ← 唯一の正
  *     ├── nikkake_react_native/src/constants/exercises.ts
  *     ├── nikkake_flutter/lib/constants/exercises.dart
- *     ├── nikkake_kmp/shared/.../constants/Exercises.kt
- *     └── nikkake_react_native/supabase/migrations/20260801000000_local_first_sync.sql
+ *     └── nikkake_kmp/shared/.../constants/Exercises.kt
  *
- * 固定UUIDがズレるとクラウド同期で同じ種目が重複するため、CI で必ず回すこと。
+ * Rails 側は Domain::PresetExercises 経由でこのJSONを直接読むので複製はない。
+ * 固定UUIDがズレると各クライアントとサーバで同じ種目が重複するため、CI で必ず回すこと。
  * 使い方: node packages/contract/scripts/verify-presets.mjs
  */
 import { readFileSync } from 'node:fs';
@@ -72,18 +72,8 @@ compare(
   ['id', 'name', 'category', 'icon', 'bodyweight', 'timeBased'],
 );
 
-// --- SQL マイグレーション（bodyweight/timeBased は持たない） ---
-const sqlRe = /\('(00000000-0000-4000-8000-\d{12})',\s*'([^']+)',\s*'([^']+)',\s*'([^']*)',\s*'([^']+)',\s*TRUE\)/g;
-compare(
-  'SQL',
-  [...read('nikkake_react_native/supabase/migrations/20260801000000_local_first_sync.sql').matchAll(sqlRe)].map((m) => ({
-    id: m[1], name: m[2], category: m[3], description: m[4], icon: m[5],
-  })),
-  ['id', 'name', 'category', 'icon', 'description'],
-);
-
 if (problems.length > 0) {
   console.error(`プリセット種目が一致していません (${problems.length}件):\n  ${problems.join('\n  ')}`);
   process.exit(1);
 }
-console.log(`プリセット種目 ${truth.length}件: React Native / Flutter / KMP / SQL の4か所すべて一致`);
+console.log(`プリセット種目 ${truth.length}件: React Native / Flutter / KMP の3か所すべて一致`);

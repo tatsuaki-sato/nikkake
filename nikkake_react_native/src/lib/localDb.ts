@@ -3,8 +3,8 @@ import { uuid, nowIso } from './id';
 import { SyncFields } from '../../types';
 
 /**
- * ローカルの「テーブル」定義。Supabase側のテーブル名と1:1で対応させてあるので、
- * 同期処理は名前をそのまま使ってpush/pullできる。
+ * ローカルの「テーブル」定義。Rails 側の列名（snake_case）と1:1で対応させてあるので、
+ * 遅延登録で預けるとき（importSnapshot）に変換が要らない。
  */
 export const COLLECTIONS = {
   exercises: 'exercises',
@@ -24,10 +24,6 @@ export interface LocalMeta {
   snapshotImportedAt?: string | null;
   schemaVersion: number;
   seeded: boolean;
-  /** 最後にSupabaseと同期できた時刻。pullの差分取得カーソルも兼ねる */
-  lastSyncedAt: string | null;
-  /** 同期先アカウント。別アカウントでサインインしたら作り直す */
-  syncUserId: string | null;
 }
 
 export const CURRENT_SCHEMA_VERSION = 1;
@@ -35,8 +31,6 @@ export const CURRENT_SCHEMA_VERSION = 1;
 const DEFAULT_META: LocalMeta = {
   schemaVersion: CURRENT_SCHEMA_VERSION,
   seeded: false,
-  lastSyncedAt: null,
-  syncUserId: null,
 };
 
 export const getMeta = (): Promise<LocalMeta> => readObject<LocalMeta>('meta', DEFAULT_META);
@@ -164,52 +158,6 @@ export const softDeleteWhere = async (
     await writeCollection(collection, next);
   }
   return count;
-};
-
-/**
- * 同期のpull結果をローカルへ取り込む。updated_atが新しい方を採用する
- * (last-write-wins)。ローカル側が新しければリモートの値は捨てる。
- */
-export const upsertFromRemote = async <T extends Row>(
-  collection: CollectionName,
-  remoteRows: T[]
-): Promise<{ inserted: number; updated: number; skipped: number }> => {
-  const rows = await readCollection<T>(collection);
-  const byId = new Map(rows.map(r => [r.id, r]));
-  let inserted = 0;
-  let updated = 0;
-  let skipped = 0;
-
-  for (const remote of remoteRows) {
-    const local = byId.get(remote.id);
-    if (!local) {
-      byId.set(remote.id, remote);
-      inserted++;
-      continue;
-    }
-
-    if (new Date(remote.updated_at).getTime() > new Date(local.updated_at).getTime()) {
-      byId.set(remote.id, remote);
-      updated++;
-    } else {
-      skipped++;
-    }
-  }
-
-  await writeCollection(collection, Array.from(byId.values()));
-  return { inserted, updated, skipped };
-};
-
-/** 前回同期以降に変更された行（push対象） */
-export const changedSince = async <T extends Row>(
-  collection: CollectionName,
-  since: string | null
-): Promise<T[]> => {
-  const rows = await readCollection<T>(collection);
-  if (!since) return rows;
-
-  const cursor = new Date(since).getTime();
-  return rows.filter(r => new Date(r.updated_at).getTime() > cursor);
 };
 
 export const resetDatabase = clearAll;

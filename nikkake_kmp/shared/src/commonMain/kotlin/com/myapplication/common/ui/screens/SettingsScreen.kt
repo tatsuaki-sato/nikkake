@@ -45,9 +45,6 @@ import kotlinx.coroutines.launch
  * この画面の主役は「バックアップするかどうか」の説明。
  * サインインは機能を開放するためのものではなく、
  * 端末を変えたときにデータを引き継ぐためだけのもの、と伝わる文言にしてある。
- *
- * authStore が null なのは Supabase の初期化に失敗した場合。
- * その場合もローカルモードとして通常どおり表示する。
  */
 @Composable
 fun SettingsScreen(appStore: AppStore, authStore: AuthStore, navigation: Navigation) {

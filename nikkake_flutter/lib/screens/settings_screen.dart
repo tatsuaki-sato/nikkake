@@ -49,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Supabaseの初期化に失敗した場合や、認証を組み込まないテスト環境では
+    // サーバに登録できていない場合や、認証を組み込まないテスト環境では
     // AuthController が存在しない。その場合もローカルモードとして通常どおり表示する。
     final auth = context.watch<AuthController?>();
     final mode = auth?.mode ?? StorageMode.local;

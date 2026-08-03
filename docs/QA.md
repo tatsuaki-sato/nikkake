@@ -223,7 +223,3 @@ expo-router のWeb実装ではタブを切り替えても前の画面のDOMが�
 既定の 800×600 だとルーティン作成フォームが縦に収まらず、画面外のウィジェットは
 ビルドされないためタップできません。`pumpApp` で 1200×4000 に広げています。
 
-### Supabase の残骸
-
-`nikkake_react_native/supabase/` と `supabase.ts` が残っています。
-Rails へ移行済みなので機能はしていません（Phase 5 の後始末で削除予定）。

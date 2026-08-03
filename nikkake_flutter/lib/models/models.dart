@@ -2,13 +2,11 @@
 // nikkake - ドメインモデル (Flutter)
 // ============================================
 //
-// データはすべて端末ローカルが真実の源。サインインしている場合のみ
-// 同じ形のレコードがSupabaseへ複製される。
-// そのため全エンティティが updatedAt / deletedAt を持ち、
-// 同期は updatedAt による last-write-wins で解決する。
+// サーバに登録できていないあいだは端末ローカルが真実の源。
+// 全エンティティが updatedAt / deletedAt を持つ（deletedAt は論理削除用）。
 //
-// JSONのキーはSupabaseの列名(snake_case)に合わせてある。
-// ローカル保存もこの形なので、同期時に変換が要らない。
+// JSONのキーは Rails の列名(snake_case)に合わせてある。
+// 遅延登録で預けるとき(importSnapshot)に変換が要らない。
 
 enum ExerciseCategory { strength, cardio, game, custom }
 
@@ -37,8 +35,6 @@ LogStatus logStatusFrom(String? value) =>
 
 /// 端末ローカルのみか、クラウドへバックアップ中か
 enum StorageMode { local, cloud }
-
-enum SyncStatus { idle, syncing, error, offline }
 
 /// 全エンティティ共通の同期用インターフェース
 abstract class SyncEntity {
@@ -565,14 +561,6 @@ class OverallStats {
     required this.totalSets,
     required this.thisWeekCount,
   });
-}
-
-class SyncState {
-  final SyncStatus status;
-  final DateTime? lastSyncedAt;
-  final String? lastError;
-
-  const SyncState({this.status = SyncStatus.idle, this.lastSyncedAt, this.lastError});
 }
 
 /// サーバから見た「いまのアカウント」。

@@ -1,7 +1,6 @@
 package com.myapplication.common.data
 
 import com.myapplication.common.domain.nowIso
-import kotlinx.datetime.Instant
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -10,7 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlin.random.Random
 
 /**
- * ローカルの「テーブル」名。Supabase側のテーブル名と1:1で対応させてあるので、
+ * ローカルの「テーブル」名。Rails 側の列名(snake_case)と1:1で対応させてあるので、
  * 同期処理は名前をそのまま使ってpush/pullできる。
  */
 object Collections {
@@ -28,10 +27,6 @@ object Collections {
 data class LocalMeta(
     val schemaVersion: Int = LocalDb.CURRENT_SCHEMA_VERSION,
     val seeded: Boolean = false,
-    /** 最後にSupabaseと同期できた時刻。pullの差分取得カーソルも兼ねる */
-    val lastSyncedAt: String? = null,
-    /** 同期先アカウント。別アカウントでサインインしたらカーソルを捨てる */
-    val syncUserId: String? = null,
     /**
      * サーバが発行したトークン。生の値はここにしか無い。
      * サインアウトで空文字を入れるので、読むときは空を null と同じに扱う（apiToken プロパティ側で吸収）
@@ -53,9 +48,7 @@ data class LocalMeta(
     fun withApiToken(value: String?) = copy(apiTokenRaw = value)
 }
 
-data class UpsertResult(val inserted: Int, val updated: Int, val skipped: Int)
-
-/** クライアント生成のIDはSupabaseのuuid列に入るので、RFC 4122 v4 準拠にする */
+/** クライアント生成のIDは PostgreSQL の uuid 列に入るので、RFC 4122 v4 準拠にする */
 object Uuid {
     private const val HEX = "0123456789abcdef"
 
@@ -107,8 +100,6 @@ class LocalDb(private val storage: StorageAdapter) {
 
     fun setMeta(
         seeded: Boolean? = null,
-        lastSyncedAt: String? = null,
-        syncUserId: String? = null,
         apiToken: String? = null,
         snapshotImportedAt: String? = null,
         offlineQueue: String? = null,
@@ -117,8 +108,6 @@ class LocalDb(private val storage: StorageAdapter) {
         val current = getMeta()
         val next = current.copy(
             seeded = seeded ?: current.seeded,
-            lastSyncedAt = lastSyncedAt ?: current.lastSyncedAt,
-            syncUserId = syncUserId ?: current.syncUserId,
             snapshotImportedAt = snapshotImportedAt ?: current.snapshotImportedAt,
             offlineQueue = offlineQueue ?: current.offlineQueue,
             offlineQueueDead = offlineQueueDead ?: current.offlineQueueDead,
@@ -227,55 +216,6 @@ class LocalDb(private val storage: StorageAdapter) {
         if (count > 0) write(name, serializer, next)
         return count
     }
-
-    /** pull結果の取り込み。updated_at が新しい方を採用する (last-write-wins) */
-    fun <T : SyncEntity<T>> upsertFromRemote(
-        name: String,
-        serializer: KSerializer<T>,
-        remoteRows: List<T>,
-    ): UpsertResult {
-        val byId = readRaw(name, serializer).associateBy { it.id }.toMutableMap()
-        var inserted = 0
-        var updated = 0
-        var skipped = 0
-
-        for (remote in remoteRows) {
-            val local = byId[remote.id]
-            when {
-                local == null -> {
-                    byId[remote.id] = remote
-                    inserted++
-                }
-                isAfter(remote.updatedAt, local.updatedAt) -> {
-                    byId[remote.id] = remote
-                    updated++
-                }
-                else -> skipped++
-            }
-        }
-
-        write(name, serializer, byId.values.toList())
-        return UpsertResult(inserted, updated, skipped)
-    }
-
-    /** 前回同期以降に変更された行（push対象） */
-    fun <T : SyncEntity<T>> changedSince(
-        name: String,
-        serializer: KSerializer<T>,
-        since: String?,
-    ): List<T> {
-        val rows = readRaw(name, serializer)
-        return if (since == null) rows else rows.filter { isAfter(it.updatedAt, since) }
-    }
-
-    /**
-     * ISO8601同士の前後比較。
-     *
-     * 文字列比較にしないのは、小数秒の有無で桁数が変わるため。
-     * "…:00.500Z" と "…:00Z" を辞書順で比べると '.' < 'Z' で前後が逆転する。
-     */
-    private fun isAfter(a: String, b: String): Boolean =
-        runCatching { Instant.parse(a) > Instant.parse(b) }.getOrElse { a > b }
 
     fun reset() {
         storage.keys().filter { it.startsWith(PREFIX) }.forEach(storage::remove)

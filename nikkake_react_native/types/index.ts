@@ -3,7 +3,7 @@
 // ============================================
 //
 // データはすべて端末ローカルが真実の源(source of truth)。
-// サインインしている場合のみ、同じ形のレコードがSupabaseへ複製される。
+// 登録できていれば、同じ形のレコードが Rails へ預けられる。
 // そのため全エンティティが updated_at / deleted_at を持ち、
 // 同期は updated_at による last-write-wins で解決する。
 
@@ -193,7 +193,7 @@ export interface WorkoutSummary {
 
 /**
  * local  : サインインしていない。端末内だけにデータがある
- * cloud  : サインイン済み。ローカルを正としつつSupabaseへ複製する
+ * cloud  : メール登録済み。Rails 側のレコードとして残り続ける
  */
 export type StorageMode = 'local' | 'cloud';
 

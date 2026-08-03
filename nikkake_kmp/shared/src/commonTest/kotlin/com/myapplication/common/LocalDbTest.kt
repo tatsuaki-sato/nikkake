@@ -113,93 +113,10 @@ class LocalDbTest {
     }
 
     @Test
-    fun upsertFromRemoteは新しい方を採用する() {
-        val db = createTestDb()
-        val local = db.insert(Collections.ROUTINES, serializer, newRoutine("ローカル版"))
-
-        db.upsertFromRemote(
-            Collections.ROUTINES,
-            serializer,
-            listOf(local.copy(name = "古いリモート版", updatedAt = "2020-01-01T00:00:00Z")),
-        )
-        assertEquals("ローカル版", db.find(Collections.ROUTINES, serializer, local.id)?.name)
-
-        db.upsertFromRemote(
-            Collections.ROUTINES,
-            serializer,
-            listOf(local.copy(name = "新しいリモート版", updatedAt = "2099-01-01T00:00:00Z")),
-        )
-        assertEquals("新しいリモート版", db.find(Collections.ROUTINES, serializer, local.id)?.name)
-    }
-
-    @Test
-    fun 小数秒の有無で前後関係が逆転しない() {
-        // 文字列比較だと "…:00.500Z" < "…:00Z" になってしまう（'.' < 'Z'）。
-        // 同期の取りこぼしに直結するので明示的に守る。
-        val db = createTestDb()
-        val local = db.insert(
-            Collections.ROUTINES,
-            serializer,
-            newRoutine("ローカル版").copy(updatedAt = "2026-08-01T00:00:00.500Z"),
-        )
-
-        db.upsertFromRemote(
-            Collections.ROUTINES,
-            serializer,
-            listOf(local.copy(name = "1秒前のリモート版", updatedAt = "2026-08-01T00:00:00Z")),
-        )
-
-        assertEquals(
-            "ローカル版",
-            db.find(Collections.ROUTINES, serializer, local.id)?.name,
-            "小数秒付きのローカル値の方が新しいので上書きされてはいけない",
-        )
-    }
-
-    @Test
-    fun upsertFromRemoteは未知のIDを挿入する() {
-        val db = createTestDb()
-        val result = db.upsertFromRemote(
-            Collections.ROUTINES,
-            serializer,
-            listOf(newRoutine("リモート発", id = "remote-1")),
-        )
-
-        assertEquals(1, result.inserted)
-        assertEquals(0, result.updated)
-        assertEquals(1, db.list(Collections.ROUTINES, serializer).size)
-    }
-
-    @Test
-    fun changedSinceはカーソル以降だけ返す() {
-        val db = createTestDb()
-        db.insert(Collections.ROUTINES, serializer, newRoutine("古い"))
-        val cursor = db.readRaw(Collections.ROUTINES, serializer).first().updatedAt
-
-        db.insert(
-            Collections.ROUTINES,
-            serializer,
-            newRoutine("新しい").copy(updatedAt = "2099-01-01T00:00:00Z"),
-        )
-
-        val changed = db.changedSince(Collections.ROUTINES, serializer, cursor)
-        assertEquals(1, changed.size)
-        assertEquals("新しい", changed.first().name)
-    }
-
-    @Test
-    fun カーソルがnullなら全件が対象() {
-        val db = createTestDb()
-        db.insertMany(Collections.ROUTINES, serializer, listOf(newRoutine("A"), newRoutine("B")))
-        assertEquals(2, db.changedSince(Collections.ROUTINES, serializer, null).size)
-    }
-
-    @Test
     fun メタ情報は初期値を返し部分更新できる() {
         val db = createTestDb()
         val meta = db.getMeta()
         assertFalse(meta.seeded)
-        assertNull(meta.lastSyncedAt)
 
         db.setMeta(seeded = true)
         val updated = db.getMeta()
