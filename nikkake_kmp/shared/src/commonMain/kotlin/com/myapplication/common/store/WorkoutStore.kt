@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.myapplication.common.constants.DEFAULT_REST_SEC
 import com.myapplication.common.data.LogStatus
-import com.myapplication.common.data.Repository
+import com.myapplication.common.data.NikkakeRepository
 import com.myapplication.common.data.WorkoutSessionView
 import com.myapplication.common.data.SaveWorkoutExercise
 import com.myapplication.common.data.WorkoutExerciseState
@@ -20,7 +20,7 @@ import kotlinx.datetime.LocalDate
  * 実行中のワークアウトの状態。
  * 保存はローカルストレージへの書き込みなので即座に完了する。
  */
-class WorkoutStore(private val repository: Repository) {
+class WorkoutStore(private val repository: NikkakeRepository) {
 
     var routineId by mutableStateOf<String?>(null)
         private set

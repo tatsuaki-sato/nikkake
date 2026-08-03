@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +39,9 @@ import com.myapplication.common.constants.categoryLabels
 import com.myapplication.common.constants.routineColors
 import com.myapplication.common.constants.routineIcons
 import com.myapplication.common.data.ExerciseCategory
+import com.myapplication.common.data.NetworkFailure
+import com.myapplication.common.data.PermanentFailure
+import com.myapplication.common.data.OFFLINE_SAVE_MESSAGE
 import com.myapplication.common.data.FrequencyType
 import com.myapplication.common.data.RoutineExerciseInput
 import com.myapplication.common.data.RoutineInput
@@ -54,6 +58,7 @@ import com.myapplication.common.ui.components.tag
 import com.myapplication.common.ui.theme.LocalPalette
 import com.myapplication.common.ui.theme.Radii
 import com.myapplication.common.ui.theme.Spacing
+import kotlinx.coroutines.launch
 import com.myapplication.common.ui.theme.hexToColor
 
 /** フォーム上の1種目。入力途中は数値もテキストのまま持つ */
@@ -90,6 +95,7 @@ private class ExerciseRow(
 @Composable
 fun RoutineFormScreen(appStore: AppStore, navigation: Navigation, routineId: String?) {
     val palette = LocalPalette.current
+    val scope = rememberCoroutineScope()
     val isEdit = routineId != null
     val existing = remember(routineId) { routineId?.let { appStore.findRoutine(it) } }
 
@@ -101,6 +107,7 @@ fun RoutineFormScreen(appStore: AppStore, navigation: Navigation, routineId: Str
     val frequencyDays = remember { mutableStateListOf<Int>().also { it.addAll(existing?.routine?.frequencyDays.orEmpty()) } }
     var pickerOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     val rows = remember {
@@ -138,6 +145,7 @@ fun RoutineFormScreen(appStore: AppStore, navigation: Navigation, routineId: Str
             }
         }
         error = null
+        saving = true
 
         val input = RoutineInput(
             name = name.trim(),
@@ -151,8 +159,24 @@ fun RoutineFormScreen(appStore: AppStore, navigation: Navigation, routineId: Str
             exercises = rows.map { it.toInput() },
         )
 
-        if (isEdit) appStore.updateRoutine(routineId!!, input) else appStore.createRoutine(input)
-        navigation.pop()
+        scope.launch {
+            try {
+                if (isEdit) appStore.updateRoutine(routineId!!, input) else appStore.createRoutine(input)
+                navigation.pop()
+            } catch (e: NetworkFailure) {
+                // 圏外でルーティンを作れると、サーバの採番や検証を通っていない
+                // ルーティンに対して記録が積まれ、整合を取る手段が無くなる。
+                // 保存させずに、電波が戻ってからやり直してもらう
+                error = OFFLINE_SAVE_MESSAGE
+                saving = false
+            } catch (e: PermanentFailure) {
+                error = e.message ?: "保存に失敗しました"
+                saving = false
+            } catch (e: Exception) {
+                error = "保存に失敗しました"
+                saving = false
+            }
+        }
     }
 
     Column(Modifier.fillMaxSize().background(palette.background)) {
@@ -366,6 +390,8 @@ fun RoutineFormScreen(appStore: AppStore, navigation: Navigation, routineId: Str
                 AppButton(
                     label = if (isEdit) "保存する" else "作成する",
                     onClick = { submit() },
+                    enabled = !saving,
+                    loading = saving,
                     modifier = Modifier.tag("routine-submit"),
                 )
 

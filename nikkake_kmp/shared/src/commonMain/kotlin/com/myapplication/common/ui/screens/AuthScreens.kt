@@ -46,7 +46,7 @@ import kotlinx.coroutines.launch
  * ここを飛ばしてもアプリの全機能が使えることを画面上でも明示している。
  */
 @Composable
-fun LoginScreen(authStore: AuthStore?, navigation: Navigation) {
+fun LoginScreen(authStore: AuthStore, navigation: Navigation) {
     val palette = LocalPalette.current
     val scope = rememberCoroutineScope()
 
@@ -122,15 +122,12 @@ fun LoginScreen(authStore: AuthStore?, navigation: Navigation) {
                             error = "メールアドレスとパスワードを入力してください"
                             return@AppButton
                         }
-                        val store = authStore ?: run {
-                            error = "サーバーに接続できません。しばらくしてからお試しください。"
-                            return@AppButton
-                        }
 
                         loading = true
                         error = null
                         scope.launch {
-                            val result = store.signIn(email.trim(), password)
+                            // サーバは userErrors.message にそのまま画面へ出せる日本語を入れて返す
+                            val result = authStore.signIn(email.trim(), password)
                             loading = false
                             if (result == null) navigation.pop() else error = result
                         }
@@ -158,10 +155,13 @@ fun LoginScreen(authStore: AuthStore?, navigation: Navigation) {
 
 /**
  * アカウント作成。
- * 既にローカルにあるルーティンと記録は、作成後の初回同期でそのまま引き継がれる。
+ *
+ * 新しいアカウントを作るのではなく、いま使っている匿名アカウントに
+ * メールとパスワードを足す。user.id が変わらないので、
+ * **これまでの記録は1件も移動しない**（引き継ぎ処理そのものが要らない）。
  */
 @Composable
-fun RegisterScreen(authStore: AuthStore?, navigation: Navigation) {
+fun RegisterScreen(authStore: AuthStore, navigation: Navigation) {
     val palette = LocalPalette.current
     val scope = rememberCoroutineScope()
 
@@ -185,20 +185,25 @@ fun RegisterScreen(authStore: AuthStore?, navigation: Navigation) {
             AppCard(modifier = Modifier.padding(Spacing.lg).tag("register-done")) {
                 Column {
                     Text(
-                        "確認メールを送りました",
+                        "登録が完了しました",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = palette.textPrimary,
                     )
                     Spacer(Modifier.height(Spacing.sm))
                     Text(
-                        "メール内のリンクを開くとバックアップが有効になります。" +
-                            "それまでも、この端末での記録はこれまで通り続けられます。",
+                        "これまでの記録はそのまま残っています。" +
+                            "機種変更やアプリの入れ直しをしても、このメールアドレスで元に戻せます。",
                         fontSize = 13.sp,
                         color = palette.textSecondary,
                     )
                     Spacer(Modifier.height(Spacing.lg))
-                    AppButton("アプリに戻る", onClick = navigation::popToRoot)
+                    AppButton(
+                        "アプリに戻る",
+                        modifier = Modifier.tag("register-back"),
+                        // 登録 → サインイン → タブ の2枚を確実に戻す
+                        onClick = navigation::popToRoot,
+                    )
                 }
             }
             return@Column
@@ -211,7 +216,7 @@ fun RegisterScreen(authStore: AuthStore?, navigation: Navigation) {
             item {
                 AppCard(color = palette.surfaceElevated) {
                     Text(
-                        "今この端末にあるルーティンと記録は、アカウント作成後にそのままクラウドへ引き継がれます。",
+                        "今この端末にある記録は、登録後もそのまま残ります。",
                         fontSize = 13.sp,
                         color = palette.textSecondary,
                     )
@@ -255,22 +260,13 @@ fun RegisterScreen(authStore: AuthStore?, navigation: Navigation) {
                                 return@AppButton
                             }
                         }
-                        val store = authStore ?: run {
-                            error = "サーバーに接続できません。しばらくしてからお試しください。"
-                            return@AppButton
-                        }
 
                         loading = true
                         error = null
                         scope.launch {
-                            val result = store.signUp(email.trim(), password)
+                            val result = authStore.signUp(email.trim(), password)
                             loading = false
-                            when {
-                                result != null -> error = result
-                                // メール確認が必要な設定だとこの時点ではサインインが完了していない
-                                store.user != null -> navigation.popToRoot()
-                                else -> done = true
-                            }
+                            if (result != null) error = result else done = true
                         }
                     },
                 )

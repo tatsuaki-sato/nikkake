@@ -10,7 +10,6 @@ import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,17 +79,10 @@ class Navigation {
 }
 
 @Composable
-fun AppNavigator(appStore: AppStore, workoutStore: WorkoutStore, authStore: AuthStore?) {
+fun AppNavigator(appStore: AppStore, workoutStore: WorkoutStore, authStore: AuthStore) {
     val palette = LocalPalette.current
     val navigation = remember { Navigation() }
     var selectedTab by remember { mutableStateOf(Tab.HOME) }
-
-    // 初回起動時にプリセット種目と「いつものルーティン」を用意する。
-    // これが終わればサインインの有無に関係なくアプリは完全に使える。
-    LaunchedEffect(Unit) { appStore.bootstrap() }
-
-    // 認証確認は表示に必須ではないので、UIをブロックせず後追いで走らせる
-    LaunchedEffect(authStore) { authStore?.initialize() }
 
     if (!appStore.loaded) {
         Box(

@@ -81,18 +81,21 @@ class AppStore(
 
     fun findRoutine(id: String): RoutineWithExercises? = routines.firstOrNull { it.id == id }
 
-    fun createRoutine(input: RoutineInput) {
-        scope.launch {
-            repository.createRoutine(input)
-            reload()
-        }
+    /**
+     * 圏外でルーティンを作れると、サーバの採番や検証を通っていない
+     * ルーティンに対して記録が積まれ、整合を取る手段が無くなる。
+     *
+     * suspend にして例外をそのまま呼び出し元へ伝える。ここで握りつぶすと、
+     * 画面側が失敗を知る手段が無くなり「保存中…」のまま固まる。
+     */
+    suspend fun createRoutine(input: RoutineInput) {
+        repository.createRoutine(input)
+        reload()
     }
 
-    fun updateRoutine(id: String, input: RoutineInput) {
-        scope.launch {
-            repository.updateRoutine(id, input)
-            reload()
-        }
+    suspend fun updateRoutine(id: String, input: RoutineInput) {
+        repository.updateRoutine(id, input)
+        reload()
     }
 
     fun deleteRoutine(id: String) {
@@ -109,10 +112,8 @@ class AppStore(
         }
     }
 
-    fun resetAll() {
-        scope.launch {
-            repository.resetAll()
-            reload()
-        }
+    suspend fun resetAll() {
+        repository.resetAll()
+        reload()
     }
 }

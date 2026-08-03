@@ -3,6 +3,7 @@ package com.myapplication.common.data
 import com.myapplication.common.domain.nowIso
 import kotlinx.datetime.Instant
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -31,7 +32,26 @@ data class LocalMeta(
     val lastSyncedAt: String? = null,
     /** 同期先アカウント。別アカウントでサインインしたらカーソルを捨てる */
     val syncUserId: String? = null,
-)
+    /**
+     * サーバが発行したトークン。生の値はここにしか無い。
+     * サインアウトで空文字を入れるので、読むときは空を null と同じに扱う（apiToken プロパティ側で吸収）
+     */
+    @SerialName("api_token") private val apiTokenRaw: String? = null,
+    /**
+     * 端末のデータをサーバへ預けた日時。
+     * 一度入ったら二度と送らない。繰り返すとサーバで消したルーティンが復活する
+     */
+    @SerialName("snapshot_imported_at") val snapshotImportedAt: String? = null,
+    /** 送信待ちの記録（JSON文字列） */
+    @SerialName("offline_queue") val offlineQueue: String? = null,
+    /** 送信を諦めた記録。設定画面に出して手動対応させる */
+    @SerialName("offline_queue_dead") val offlineQueueDead: String? = null,
+) {
+    val apiToken: String? get() = apiTokenRaw?.takeIf { it.isNotEmpty() }
+
+    /** LocalMeta.copy() を直接使うと private フィールド名が露出するので、これ経由にする */
+    fun withApiToken(value: String?) = copy(apiTokenRaw = value)
+}
 
 data class UpsertResult(val inserted: Int, val updated: Int, val skipped: Int)
 
@@ -89,13 +109,20 @@ class LocalDb(private val storage: StorageAdapter) {
         seeded: Boolean? = null,
         lastSyncedAt: String? = null,
         syncUserId: String? = null,
+        apiToken: String? = null,
+        snapshotImportedAt: String? = null,
+        offlineQueue: String? = null,
+        offlineQueueDead: String? = null,
     ): LocalMeta {
         val current = getMeta()
         val next = current.copy(
             seeded = seeded ?: current.seeded,
             lastSyncedAt = lastSyncedAt ?: current.lastSyncedAt,
             syncUserId = syncUserId ?: current.syncUserId,
-        )
+            snapshotImportedAt = snapshotImportedAt ?: current.snapshotImportedAt,
+            offlineQueue = offlineQueue ?: current.offlineQueue,
+            offlineQueueDead = offlineQueueDead ?: current.offlineQueueDead,
+        ).let { if (apiToken != null) it.withApiToken(apiToken) else it }
         storage.putString(key("meta"), json.encodeToString(LocalMeta.serializer(), next))
         return next
     }

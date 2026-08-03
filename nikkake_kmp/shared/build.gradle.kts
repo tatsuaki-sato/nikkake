@@ -77,14 +77,19 @@ kotlin {
         val desktopMain by getting {
             dependencies {
                 implementation(compose.desktop.common)
+                // デスクトップ(JVM)向けのKtorエンジン。Android は okhttp、iOS は darwin を使う
+                implementation("io.ktor:ktor-client-cio:2.3.7")
             }
         }
         // 契約テスト(packages/contract/domain_cases.json)はファイル読み込みが要るので
-        // commonTest ではなく JVM 側に置く
+        // commonTest ではなく JVM 側に置く。
+        // ServerRepository のテストもここに置く。応答を差し替えた MockEngine を使うため
         val desktopTest by getting {
             dependencies {
                 implementation(kotlin("test"))
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+                implementation("io.ktor:ktor-client-mock:2.3.7")
             }
         }
     }

@@ -24,8 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.myapplication.common.data.Collections
 import com.myapplication.common.data.StorageMode
-import com.myapplication.common.data.SyncState
-import com.myapplication.common.data.SyncStatus
 import com.myapplication.common.store.AppStore
 import com.myapplication.common.store.AuthStore
 import com.myapplication.common.ui.Destination
@@ -52,11 +50,11 @@ import kotlinx.coroutines.launch
  * その場合もローカルモードとして通常どおり表示する。
  */
 @Composable
-fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Navigation) {
+fun SettingsScreen(appStore: AppStore, authStore: AuthStore, navigation: Navigation) {
     val palette = LocalPalette.current
     val scope = rememberCoroutineScope()
     val counts = appStore.counts
-    val mode = authStore?.mode ?: StorageMode.LOCAL
+    val mode = authStore.mode
 
     var confirmSignOut by remember { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
@@ -68,7 +66,7 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
         item {
             SectionTitle("データの保存先")
 
-            if (authStore == null || mode == StorageMode.LOCAL) {
+            if (mode == StorageMode.LOCAL) {
                 AppCard(modifier = Modifier.tag("settings-local-card")) {
                     Column {
                         Row {
@@ -93,8 +91,8 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
                         Divider(color = palette.border, modifier = Modifier.padding(vertical = Spacing.md))
 
                         Text(
-                            "バックアップを有効にすると、機種変更やアプリの入れ直しをしても記録を引き継げます。" +
-                                "今ある記録もそのままクラウドへ引き継がれます。",
+                            "メールアドレスを登録すると、機種変更やアプリの入れ直しをしても記録を引き継げます。" +
+                                "今ある記録はそのまま残ります（作り直しは起きません）。",
                             fontSize = 13.sp,
                             color = palette.textSecondary,
                         )
@@ -102,7 +100,6 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
 
                         AppButton(
                             label = "バックアップを有効にする",
-                            enabled = authStore != null,
                             onClick = { navigation.push(Destination.Login) },
                             modifier = Modifier.tag("settings-enable-backup"),
                         )
@@ -123,7 +120,7 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
                                 )
                                 Spacer(Modifier.height(Spacing.xs))
                                 Text(
-                                    authStore.user?.email.orEmpty(),
+                                    authStore.viewer?.email.orEmpty(),
                                     modifier = Modifier.tag("settings-email"),
                                     fontSize = 13.sp,
                                     color = palette.textSecondary,
@@ -134,27 +131,19 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
                         Divider(color = palette.border, modifier = Modifier.padding(vertical = Spacing.md))
 
                         Text(
-                            syncLabel(authStore.sync),
-                            modifier = Modifier.tag("settings-sync-status"),
+                            pendingLabel(authStore),
+                            modifier = Modifier.tag("settings-pending-status"),
                             fontSize = 13.sp,
-                            color = if (authStore.sync.status == SyncStatus.ERROR) palette.error
-                            else palette.textSecondary,
+                            color = if (authStore.lastError != null) palette.error else palette.textSecondary,
                         )
-                        if (authStore.pendingCount > 0) {
-                            Text(
-                                "未送信の変更: ${authStore.pendingCount} 件",
-                                fontSize = 13.sp,
-                                color = palette.textSecondary,
-                            )
-                        }
                         Spacer(Modifier.height(Spacing.md))
 
                         AppButton(
-                            label = "今すぐ同期",
+                            label = "今すぐ送信",
                             variant = ButtonVariant.SECONDARY,
-                            loading = authStore.sync.status == SyncStatus.SYNCING,
-                            onClick = { scope.launch { authStore.syncNow() } },
-                            modifier = Modifier.tag("settings-sync-now"),
+                            enabled = authStore.pendingCount > 0,
+                            onClick = { scope.launch { authStore.flushNow() } },
+                            modifier = Modifier.tag("settings-flush-now"),
                         )
                         Spacer(Modifier.height(Spacing.sm))
                         AppButton(
@@ -189,8 +178,7 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
             AppCard {
                 Column {
                     Text(
-                        "この端末のデータをすべて消して初期状態に戻します。" +
-                            if (mode == StorageMode.CLOUD) "クラウド側のバックアップは残ります。" else "",
+                        "ルーティンと記録をすべて削除して、初期状態に戻します。サーバ側も消えます。",
                         fontSize = 13.sp,
                         color = palette.textSecondary,
                     )
@@ -208,10 +196,11 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
         }
     }
 
-    if (confirmSignOut && authStore != null) {
+    if (confirmSignOut) {
         ConfirmDialog(
             title = "サインアウト",
-            message = "サインアウトしても、この端末の記録は消えません。クラウドへのバックアップが止まるだけです。",
+            message = "サインアウトしても記録は消えません。この端末から見えなくなるだけで、" +
+                "同じアカウントでサインインし直せば戻ります。",
             confirmLabel = "サインアウト",
             onConfirm = {
                 scope.launch { authStore.signOut() }
@@ -227,7 +216,7 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
             message = "この端末のルーティンと記録をすべて削除して、初期状態に戻します。取り消せません。",
             confirmLabel = "初期化する",
             onConfirm = {
-                appStore.resetAll()
+                scope.launch { appStore.resetAll() }
                 confirmReset = false
             },
             onDismiss = { confirmReset = false },
@@ -235,9 +224,9 @@ fun SettingsScreen(appStore: AppStore, authStore: AuthStore?, navigation: Naviga
     }
 }
 
-private fun syncLabel(sync: SyncState): String = when (sync.status) {
-    SyncStatus.SYNCING -> "同期中…"
-    SyncStatus.OFFLINE -> "オフラインのため未同期"
-    SyncStatus.ERROR -> "同期に失敗: ${sync.lastError ?: "不明なエラー"}"
-    SyncStatus.IDLE -> sync.lastSyncedAt?.let { "最終同期 $it" } ?: "まだ同期していません"
+// 「同期」はもう無い。記録がサーバへ送れているかだけを見せる
+private fun pendingLabel(authStore: AuthStore): String = when {
+    authStore.lastError != null -> "送信に失敗しました: ${authStore.lastError}"
+    authStore.pendingCount > 0 -> "未送信の記録: ${authStore.pendingCount} 件"
+    else -> "すべて送信済みです"
 }

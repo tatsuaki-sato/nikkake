@@ -1,54 +1,66 @@
 package com.myapplication.common
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import com.myapplication.common.data.Backend
+import com.myapplication.common.data.BackendSwitch
 import com.myapplication.common.data.LocalDb
 import com.myapplication.common.data.PlatformStorage
-import com.myapplication.common.data.Repository
 import com.myapplication.common.data.StorageAdapter
-import com.myapplication.common.data.SyncService
 import com.myapplication.common.store.AppStore
 import com.myapplication.common.store.AuthStore
 import com.myapplication.common.store.WorkoutStore
 import com.myapplication.common.ui.AppNavigator
 import com.myapplication.common.ui.theme.NikkakeTheme
-import io.github.jan.supabase.createSupabaseClient
-import io.github.jan.supabase.gotrue.Auth
-import io.github.jan.supabase.gotrue.auth
-import io.github.jan.supabase.postgrest.Postgrest
+import kotlinx.coroutines.launch
 
 /**
- * Supabaseはバックアップ先としてのみ使う。
- * anonキーはクライアントに埋め込む前提の公開値で、行単位のアクセス制御はRLSが担う。
+ * データ取得元の既定値。
+ *
+ * サーバに繋ぐ場合はビルド設定（`-Pnikkake.backend=server` 相当）で上書きする。
+ * 未指定ならローカル実装のみで動く。
  */
-private const val SUPABASE_URL = "https://igptzltkydyghneioedm.supabase.co"
-private const val SUPABASE_ANON_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlncHR6bHRreWR5Z2huZWlvZWRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MDMyNjEsImV4cCI6MjA5OTI3OTI2MX0.pNprCQcr4GkAY86VhF9JUHYtpGxavQxDJjpodea1dAE"
+expect val defaultBackend: Backend
+expect val defaultApiEndpoint: String
 
 /**
  * アプリのエントリポイント。
  *
- * Supabaseの初期化に失敗しても、ローカルモードでアプリは完全に動く。
+ * サーバへの登録に失敗しても、ローカルモードでアプリは完全に動く。
  * ここで例外を投げて起動を止めるのは「ログイン不要で使える」という要件に反するので、
- * authStore は null 許容にしてある。
+ * 登録は結果を待たずバックグラウンドで行う（遅延登録）。
  */
 @Composable
-fun App(db: LocalDb? = null, enableCloudBackup: Boolean = true) {
+fun App(db: LocalDb? = null, backend: Backend = defaultBackend) {
     val localDb = remember(db) { db ?: LocalDb(StorageAdapter.of(PlatformStorage())) }
-    val repository = remember(localDb) { Repository(localDb) }
-    val appStore = remember(repository) { AppStore(repository) }
-    val workoutStore = remember(repository) { WorkoutStore(repository) }
+    val backendSwitch = remember(localDb, backend) {
+        BackendSwitch(db = localDb, backend = backend, endpoint = defaultApiEndpoint)
+    }
+    val appStore = remember(backendSwitch) { AppStore(backendSwitch) }
+    val workoutStore = remember(backendSwitch) { WorkoutStore(backendSwitch) }
+    val authStore = remember(backendSwitch) { AuthStore(backendSwitch) }
 
-    val authStore = remember(localDb, enableCloudBackup) {
-        if (!enableCloudBackup) return@remember null
+    val scope = rememberCoroutineScope()
 
-        runCatching {
-            val client = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY) {
-                install(Auth)
-                install(Postgrest)
+    LaunchedEffect(backendSwitch) {
+        // 初回起動時にプリセット種目と「いつものルーティン」を端末に用意する。
+        // ここが終わればサインインの有無に関係なくアプリは完全に使える。
+        backendSwitch.prepareLocalData()
+        appStore.bootstrap()
+
+        // 以降はUIをブロックしない。
+        // サーバへの登録も認証確認も、表示には必要ない。
+        scope.launch {
+            val registered = backendSwitch.registerInBackground()
+            if (registered) {
+                // 登録が終わるとデータ元がローカルからサーバへ切り替わる。
+                // 表示中の内容はローカル由来なので読み直す
+                appStore.refresh()
             }
-            AuthStore(SyncService(localDb, client), client.auth)
-        }.getOrNull()
+            authStore.initialize()
+        }
     }
 
     NikkakeTheme(darkTheme = true) {
