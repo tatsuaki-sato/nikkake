@@ -3,6 +3,9 @@
 # If running the rails server then create or migrate existing database
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
+  # 冪等なので毎回実行してよい（db/seeds.rb 参照）。これが無いと db:prepare だけでは
+  # プリセット種目が0件のまま起動してしまう
+  ./bin/rails db:seed
 fi
 
 exec "${@}"

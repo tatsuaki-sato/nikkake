@@ -1,5 +1,8 @@
 # QA
 
+検証結果と、検証中に見つけた不具合の記録。
+「何が終わっていて何が残っているか」の全体計画は [ROADMAP.md](ROADMAP.md) を見ること。
+
 ## 最新の実行結果
 
 実行日: 2026-08-02 / 環境: macOS 15 (Apple Silicon), Ruby 4.0.6, Rails 8.1.3.1,
@@ -84,26 +87,26 @@ Flutter の実通信は未検証です。
 
 ---
 
-## 未検証の項目
+## 未検証・既知の問題（詳細）
 
-正直に残しておきます。
+一覧と優先順位は [ROADMAP.md](ROADMAP.md) にまとめてある。ここには詳細だけ残す。
 
-| 項目 | 状態 | 理由 |
-|---|---|---|
-| iOS実機 / シミュレータ | ❌ 未実施 | コンパイルは通るが、実機での描画・操作は未確認 |
-| Android実機 / エミュレータ | ❌ 未実施 | 同上 |
-| **KMP のサーバ接続** | ❌ 未着手 | ローカル実装のまま。GraphQL への接続替えが残っている |
-| **Flutter の実サーバ疎通** | ❌ 未検証 | 実装済みだが `flutter test` が HTTP を差し替えるため、実機/実サーバでの確認が要る |
-| `docker-compose.yml` の動作 | ❌ 未検証 | この環境に Docker が入っていない。ローカルの Postgres と `bin/rails s` で確認した |
-| 本番へのデプロイ | ❌ 未実施 | ホスティング先未定（Render 無料枠 + Supabase の Postgres を想定） |
-| メール登録・サインインの実通信 | ⚠️ 一部 | RSpec では通っているが、実際のメール送信基盤が未選定 |
-| 複数端末で同じアカウントを使う | ❌ 未実施 | 実アカウントが要る |
-| KMPのCompose UIテスト | ❌ 未整備 | `compose.uiTest` が Compose 1.5.11 で解決できない |
-| 匿名アカウントのGC | ❌ 未実装 | 未昇格アカウントをいつ消すか未決 |
-| レート制限 | ❌ 未実装 | `createAnonymousAccount` が無制限に叩ける |
+### 契約(schema.graphql)と実装の乖離検知が壊れている
 
-**リリース前に必ず潰すべきは、レート制限と匿名アカウントのGCです。**
-どちらも「ログイン不要」の裏返しで、放置するとDBが埋まります。
+`rake graphql:dump` が `schema.generated.graphql` に書くのに、CIは
+`schema.graphql` を diff していて常に無変更＝ノーオペレーションになっていた。
+実際に `createAnonymousAccount` の引数形が契約(`input:`)と実装(フラット引数)で
+食い違っていたが検知されなかった。クライアント側は全実装とも正しい
+（実装と同じ）形で呼んでいるため、アプリとしての実害は無い。
+
+### docker-compose.yml で見つけた不具合（2026-08-10）
+
+初めて実際に動かして見つかったもの。いずれも修正済み:
+
+1. `db` のヘルスチェックが `pg_isready -U nikkake`（DB名省略）で、存在しない `nikkake` DBを見に行っていて永遠に unhealthy → `-d nikkake_development` を追加
+2. `api` の `ports: "3000:3000"` が、コンテナ内の実際の待受（Thrusterの80番、Pumaはループバックの3000番）と食い違っていて外から繋がらない → `"3000:80"` に修正
+3. `bin/docker-entrypoint` が `db:prepare`（マイグレーション）だけでプリセット種目の `db:seed` を呼んでおらず、起動直後は種目0件 → `db:seed` を追加
+4. **上記3のdb:seedを追加した結果、apiコンテナが `Exited (1)` で落ちるようになった。** `lib/domain/preset_exercises.rb` が `packages/contract/preset_exercises.json`（モノレポの兄弟ディレクトリ）を実行時に読むが、`docker-compose.yml` のビルドコンテキストが `./nikkake_api` だけだったため `packages/contract` がイメージに含まれていなかった（`Errno::ENOENT`）。**このDockerfileは本番(Render)でもそのまま使う予定だったので、直さなければ本番デプロイも同じ理由で落ちていた。** ビルドコンテキストをリポジトリルートに変更し、ルートに `.dockerignore` を新設、`Dockerfile` のCOPY元パスと `packages/contract` の取り込みを追加して修正。**この4件目の修正はまだ再ビルドで動作確認できておらず、コミットもしていない**
 
 ---
 

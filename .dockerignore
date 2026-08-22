@@ -1,0 +1,22 @@
+# nikkake_api/Dockerfile はビルドコンテキストをリポジトリルートにして使う。
+# packages/contract は nikkake_api がプリセット種目を読むために実行時に必要
+# （lib/domain/preset_exercises.rb 参照）。それ以外は要らないので落とす。
+
+# 既定で全部無視し、要るものだけ戻す
+*
+!/nikkake_api
+!/packages/contract
+
+# nikkake_api 内で、実行時に不要なものは戻さない
+/nikkake_api/.bundle
+/nikkake_api/.env*
+/nikkake_api/config/master.key
+/nikkake_api/config/credentials/*.key
+/nikkake_api/log/*
+!/nikkake_api/log/.keep
+/nikkake_api/tmp/*
+!/nikkake_api/tmp/.keep
+/nikkake_api/tmp/pids/*
+!/nikkake_api/tmp/pids/.keep
+/nikkake_api/.github
+/nikkake_api/.devcontainer

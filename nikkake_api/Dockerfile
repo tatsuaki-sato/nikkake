@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1
 # check=error=true
 
-# This Dockerfile is designed for production, not development. Use with Kamal or build'n'run by hand:
-# docker build -t nikkake_api .
+# This Dockerfile is designed for production, not development.
+# Build context must be the repository root (not this directory), because
+# db:seed reads packages/contract/preset_exercises.json at runtime — see
+# nikkake_api/lib/domain/preset_exercises.rb. Build'n'run by hand from the repo root:
+# docker build -t nikkake_api -f nikkake_api/Dockerfile .
 # docker run -d -p 80:80 -e RAILS_MASTER_KEY=<value from config/master.key> --name nikkake_api nikkake_api
 
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
@@ -36,8 +39,8 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Install application gems
-COPY vendor/* ./vendor/
-COPY Gemfile Gemfile.lock ./
+COPY nikkake_api/vendor/* ./vendor/
+COPY nikkake_api/Gemfile nikkake_api/Gemfile.lock ./
 
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
@@ -45,7 +48,7 @@ RUN bundle install && \
     bundle exec bootsnap precompile -j 1 --gemfile
 
 # Copy application code
-COPY . .
+COPY nikkake_api/ .
 
 # Precompile bootsnap code for faster boot times.
 # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
@@ -65,6 +68,10 @@ USER 1000:1000
 # Copy built artifacts: gems, application
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
+
+# lib/domain/preset_exercises.rb が ../../../packages/contract/... を読むため、
+# ホスト側と同じ相対位置（/rails の隣）に置く
+COPY --chown=rails:rails packages/contract /packages/contract
 
 # Entrypoint prepares the database.
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]

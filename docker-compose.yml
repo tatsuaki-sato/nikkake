@@ -20,14 +20,18 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nikkake"]
+      test: ["CMD-SHELL", "pg_isready -U nikkake -d nikkake_development"]
       interval: 3s
       timeout: 3s
       retries: 20
 
   api:
     build:
-      context: ./nikkake_api
+      # プリセット種目 (packages/contract/preset_exercises.json) を nikkake_api が
+      # 実行時に読むため、ビルドコンテキストはリポジトリルートにしている
+      # （nikkake_api だけを渡すと db:seed が ENOENT で落ちる）
+      context: .
+      dockerfile: nikkake_api/Dockerfile
       # 本番用の Dockerfile をそのまま使い、開発向けの差分は環境変数だけにする。
       # 開発専用の Dockerfile を分けると、本番でだけ壊れる余地が生まれる
       args:
@@ -39,7 +43,7 @@ services:
       CORS_ORIGINS: http://localhost:8081,http://localhost:5173
       RAILS_LOG_TO_STDOUT: "1"
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
       db:
         condition: service_healthy
