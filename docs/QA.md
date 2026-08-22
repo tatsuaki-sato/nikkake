@@ -106,7 +106,17 @@ Flutter の実通信は未検証です。
 1. `db` のヘルスチェックが `pg_isready -U nikkake`（DB名省略）で、存在しない `nikkake` DBを見に行っていて永遠に unhealthy → `-d nikkake_development` を追加
 2. `api` の `ports: "3000:3000"` が、コンテナ内の実際の待受（Thrusterの80番、Pumaはループバックの3000番）と食い違っていて外から繋がらない → `"3000:80"` に修正
 3. `bin/docker-entrypoint` が `db:prepare`（マイグレーション）だけでプリセット種目の `db:seed` を呼んでおらず、起動直後は種目0件 → `db:seed` を追加
-4. **上記3のdb:seedを追加した結果、apiコンテナが `Exited (1)` で落ちるようになった。** `lib/domain/preset_exercises.rb` が `packages/contract/preset_exercises.json`（モノレポの兄弟ディレクトリ）を実行時に読むが、`docker-compose.yml` のビルドコンテキストが `./nikkake_api` だけだったため `packages/contract` がイメージに含まれていなかった（`Errno::ENOENT`）。**このDockerfileは本番(Render)でもそのまま使う予定だったので、直さなければ本番デプロイも同じ理由で落ちていた。** ビルドコンテキストをリポジトリルートに変更し、ルートに `.dockerignore` を新設、`Dockerfile` のCOPY元パスと `packages/contract` の取り込みを追加して修正。**この4件目の修正はまだ再ビルドで動作確認できておらず、コミットもしていない**
+4. **上記3のdb:seedを追加した結果、apiコンテナが `Exited (1)` で落ちるようになった。** `lib/domain/preset_exercises.rb` が `packages/contract/preset_exercises.json`（モノレポの兄弟ディレクトリ）を実行時に読むが、`docker-compose.yml` のビルドコンテキストが `./nikkake_api` だけだったため `packages/contract` がイメージに含まれていなかった（`Errno::ENOENT`）。**このDockerfileは本番(Render)でもそのまま使う予定だったので、直さなければ本番デプロイも同じ理由で落ちていた。** ビルドコンテキストをリポジトリルートに変更し、ルートに `.dockerignore` を新設、`Dockerfile` のCOPY元パスと `packages/contract` の取り込みを追加して修正。再ビルドで動作確認済み・コミット・push・CI green まで完了。
+
+### Renderへの本番デプロイで見つかった不具合（2026-08-22）
+
+初めて実際にRender + Supabaseへデプロイして見つかったもの。
+
+1. **DATABASE_URLのパスワードに `@` が含まれていて、URLとしてパース不能だった。** `postgres://user:pa@ss@host` のように `@` が2つ以上現れると、どこまでがパスワードか判別できずRailsが `URI::InvalidURIError` で起動時に落ちる。パスワード中の `@` を `%40` にURLエンコードして解消。デプロイ時に使う接続文字列は毎回このエンコードが必要（Supabase側はパスワードを生成する際に記号を含めることがある）
+2. **SupabaseのDirect connection（`db.xxx.supabase.co`）がIPv6アドレスにしか解決されず、RenderからはIPv6の発信接続ができず `Network is unreachable` で落ちた。** SupabaseのSession pooler（`aws-0-<region>.pooler.supabase.com`、ユーザー名は `postgres.<project-ref>` 形式）に切り替えて解消。Transaction poolerではなくSession poolerを使う理由は、RailsのPrepared StatementがTransaction poolerのコネクション使い回しと相性が悪いため
+3. **`config/database.yml` のproduction環境で `cache`/`queue`/`cable` が `primary` と別データベースとして定義されていたが、bareの `DATABASE_URL` 環境変数はRailsの規約上 `primary` にしか自動適用されない。** `cache`/`queue`/`cable` にはホスト情報が無いままとなり、ソケット接続にフォールバックして `db:prepare` がそこで毎回落ちていた（`primary` 自体は正しく繋がっていたため、原因特定に時間がかかった）。4つとも同じ `DATABASE_URL` を明示的に使うよう `url: <%= ENV["DATABASE_URL"] %>` に統一して解消（コミット `c43e42d`）
+
+いずれも修正済み。2026-08-22時点で `https://nikkake-api.onrender.com` が稼働中で、匿名アカウント作成・認証つきGraphQLクエリ・プリセット種目25件の取得まで確認済み。
 
 ---
 
