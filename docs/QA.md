@@ -115,8 +115,10 @@ Flutter の実通信は未検証です。
 1. **DATABASE_URLのパスワードに `@` が含まれていて、URLとしてパース不能だった。** `postgres://user:pa@ss@host` のように `@` が2つ以上現れると、どこまでがパスワードか判別できずRailsが `URI::InvalidURIError` で起動時に落ちる。パスワード中の `@` を `%40` にURLエンコードして解消。デプロイ時に使う接続文字列は毎回このエンコードが必要（Supabase側はパスワードを生成する際に記号を含めることがある）
 2. **SupabaseのDirect connection（`db.xxx.supabase.co`）がIPv6アドレスにしか解決されず、RenderからはIPv6の発信接続ができず `Network is unreachable` で落ちた。** SupabaseのSession pooler（`aws-0-<region>.pooler.supabase.com`、ユーザー名は `postgres.<project-ref>` 形式）に切り替えて解消。Transaction poolerではなくSession poolerを使う理由は、RailsのPrepared StatementがTransaction poolerのコネクション使い回しと相性が悪いため
 3. **`config/database.yml` のproduction環境で `cache`/`queue`/`cable` が `primary` と別データベースとして定義されていたが、bareの `DATABASE_URL` 環境変数はRailsの規約上 `primary` にしか自動適用されない。** `cache`/`queue`/`cable` にはホスト情報が無いままとなり、ソケット接続にフォールバックして `db:prepare` がそこで毎回落ちていた（`primary` 自体は正しく繋がっていたため、原因特定に時間がかかった）。4つとも同じ `DATABASE_URL` を明示的に使うよう `url: <%= ENV["DATABASE_URL"] %>` に統一して解消（コミット `c43e42d`）
+4. **`nikkake_web/src/lib.ts` がGraphQLのエンドポイントを `/graphql` の相対パス固定にしていた。** 開発時はVite proxyがRailsへ転送するので動くが、Render Static Siteとしてデプロイするとproxyが存在せず、本番ビルドではAPIに届かない。`VITE_API_ENDPOINT` 環境変数でビルド時に絶対URLへ差し替えられるようにして解消（コミット `de8d807`）
+5. **WebのStatic SiteをデプロイしただけではAPI側のCORSに阻まれてブラウザから繋がらなかった。** `CORS_ORIGINS` にWebの本番URL（`https://nikkake-web.onrender.com`）を追加して解消
 
-いずれも修正済み。2026-08-22時点で `https://nikkake-api.onrender.com` が稼働中で、匿名アカウント作成・認証つきGraphQLクエリ・プリセット種目25件の取得まで確認済み。
+いずれも修正済み。2026-08-22時点で `https://nikkake-api.onrender.com`（API）と `https://nikkake-web.onrender.com`（Web）が稼働中。ブラウザから実際にホーム画面表示・記録まで確認済み。
 
 ---
 

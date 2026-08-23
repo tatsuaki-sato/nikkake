@@ -42,8 +42,8 @@
 | # | 内容 | 状態 |
 |---|---|---|
 | B1 | Dockerを実際に動かして検証する | ✅ 完了（2026-08-10）。設定ミス4件発見・修正・再ビルドで動作確認・push・CI green まで完了。詳細は[QA.md](QA.md#docker-composeymlで見つけた不具合2026-08-10) |
-| B2 | 本番へデプロイして常設URLを用意する | ✅ 完了（2026-08-22）。Render(Web Service) + Supabase(PostgreSQL, Session pooler)で稼働中。`https://nikkake-api.onrender.com` で匿名アカウント作成・認証つきクエリまで確認済み |
-| B3 | 実サーバ・実機での動作確認 | 🔶 進行中 — APIの疎通は確認済み。クライアントからの接続確認はこれから |
+| B2 | 本番へデプロイして常設URLを用意する | ✅ 完了（2026-08-22）。API: Render(Web Service) + Supabase(PostgreSQL, Session pooler) が `https://nikkake-api.onrender.com` で稼働。Web: Render(Static Site) が `https://nikkake-web.onrender.com` で稼働。CORS設定済みで、ブラウザから実際に動作確認済み |
+| B3 | 実サーバ・実機での動作確認 | 🔶 進行中 — Web(ブラウザ)は確認済み。RN/Flutterからの接続確認はこれから |
 | B4 | iOS/Android実機での確認 | ❌ 今回は着手しない（tatsuakiさんの手元でのみ可能） |
 | B5 | 複数端末で同じアカウントを使う確認 | ❌ 今回は着手しない |
 
