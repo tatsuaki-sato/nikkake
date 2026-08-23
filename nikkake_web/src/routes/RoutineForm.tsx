@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { uuid } from '@nikkake/domain';
-import type { Exercise, FrequencyType, RoutineExerciseInput } from '@nikkake/api-client';
+import type { Exercise, ExerciseCategory, FrequencyType, RoutineExerciseInput } from '@nikkake/api-client';
 import { OFFLINE_SAVE_MESSAGE, isNetworkError } from '@nikkake/api-client';
 import { api } from '../lib';
 import { Button, Card, Chip, ErrorText, Loading } from '../components/ui';
@@ -14,7 +14,12 @@ const DEFAULT_REST_SEC = 60;
 interface Row extends RoutineExerciseInput {
   name: string;
   icon: string | null;
+  category: ExerciseCategory;
 }
+
+/** 有酸素・ゲーム系は「回数×重量」ではなく「何分やるか」で目標を決める */
+const isDurationBased = (category: ExerciseCategory) => category === 'CARDIO' || category === 'GAME';
+const DEFAULT_CARDIO_DURATION_SEC = 300;
 
 /** 作成と編集で共通のフォーム。2画面に分けると入力仕様がすぐズレる */
 export const RoutineForm = ({ routineId, onDone }: {
@@ -58,6 +63,7 @@ export const RoutineForm = ({ routineId, onDone }: {
       exerciseId: re.exercise.id,
       name: re.exercise.name,
       icon: re.exercise.icon,
+      category: re.exercise.category,
       targetSets: re.targetSets,
       targetReps: re.targetReps,
       targetWeight: re.targetWeight,
@@ -78,7 +84,7 @@ export const RoutineForm = ({ routineId, onDone }: {
       frequencyType,
       frequencyValue: frequencyType === 'EVERY_N_DAYS' ? Math.max(1, Number(frequencyValue) || 1) : 1,
       frequencyDays: frequencyType === 'WEEKLY' ? days : [],
-      exercises: rows.map(({ name: _n, icon: _i, ...rest }) => rest),
+      exercises: rows.map(({ name: _n, icon: _i, category: _c, ...rest }) => rest),
     };
 
     try {
@@ -106,10 +112,17 @@ export const RoutineForm = ({ routineId, onDone }: {
   };
 
   const addExercise = (e: Exercise) => {
-    setRows(prev => [...prev, {
-      id: uuid(), exerciseId: e.id, name: e.name, icon: e.icon,
-      targetSets: 3, targetReps: 10, targetWeight: null, targetDurationSec: null, restSec: DEFAULT_REST_SEC,
-    }]);
+    const row: Row = isDurationBased(e.category)
+      ? {
+          id: uuid(), exerciseId: e.id, name: e.name, icon: e.icon, category: e.category,
+          targetSets: 1, targetReps: null, targetWeight: null,
+          targetDurationSec: DEFAULT_CARDIO_DURATION_SEC, restSec: DEFAULT_REST_SEC,
+        }
+      : {
+          id: uuid(), exerciseId: e.id, name: e.name, icon: e.icon, category: e.category,
+          targetSets: 3, targetReps: 10, targetWeight: null, targetDurationSec: null, restSec: DEFAULT_REST_SEC,
+        };
+    setRows(prev => [...prev, row]);
     setPickerOpen(false);
   };
 
@@ -208,12 +221,20 @@ export const RoutineForm = ({ routineId, onDone }: {
               <div className="row" style={{ marginTop: 'var(--sp-2)', flexWrap: 'wrap' }}>
                 <NumField label="セット" value={row.targetSets} testId={`exercise-sets-${i}`}
                           onChange={v => patchRow(i, { targetSets: Math.max(1, v ?? 1) })} />
-                <NumField label="回数" value={row.targetReps ?? null} testId={`exercise-reps-${i}`}
-                          onChange={v => patchRow(i, { targetReps: v })} />
-                <NumField label="重量kg" value={row.targetWeight ?? null} testId={`exercise-weight-${i}`}
-                          onChange={v => patchRow(i, { targetWeight: v })} />
-                <NumField label="秒" value={row.targetDurationSec ?? null} testId={`exercise-duration-${i}`}
-                          onChange={v => patchRow(i, { targetDurationSec: v })} />
+                {isDurationBased(row.category) ? (
+                  <NumField label="分" testId={`exercise-minutes-${i}`}
+                            value={row.targetDurationSec != null ? row.targetDurationSec / 60 : null}
+                            onChange={v => patchRow(i, { targetDurationSec: v !== null ? Math.round(v * 60) : null })} />
+                ) : (
+                  <>
+                    <NumField label="回数" value={row.targetReps ?? null} testId={`exercise-reps-${i}`}
+                              onChange={v => patchRow(i, { targetReps: v })} />
+                    <NumField label="重量kg" value={row.targetWeight ?? null} testId={`exercise-weight-${i}`}
+                              onChange={v => patchRow(i, { targetWeight: v })} />
+                    <NumField label="秒" value={row.targetDurationSec ?? null} testId={`exercise-duration-${i}`}
+                              onChange={v => patchRow(i, { targetDurationSec: v })} />
+                  </>
+                )}
                 <NumField label="休憩秒" value={row.restSec ?? null} testId={`exercise-rest-${i}`}
                           onChange={v => patchRow(i, { restSec: v })} />
               </div>
