@@ -1,23 +1,48 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDateString, greetingForHour } from '@nikkake/domain';
-import type { TodayRoutine } from '@nikkake/api-client';
+import type { TodayRoutine, WorkoutSummary } from '@nikkake/api-client';
 import { api } from '../lib';
 import { Card, EmptyState, Button, Loading } from '../components/ui';
+import { Workout } from './Workout';
 
 /**
  * ホーム。起動直後に見る画面。
  * 「今日やるルーティン」が並んでいて1タップで開始できることが、この画面の唯一の役目。
  * 区分（due / notScheduled / completed）はサーバが決めている。
+ *
+ * ワークアウトは別画面へ遷移せず、このホームの中でその場に展開して行う
+ * （ルーティンを選ぶたびに画面が切り替わるのが面倒、というフィードバックへの対応）。
  */
-export const Home = ({ onOpenWorkout, onCreateRoutine }: {
-  onOpenWorkout: (routineId: string) => void;
+export const Home = ({ activeRoutineId, onSelectRoutine, onWorkoutCancelled, onWorkoutFinished, onCreateRoutine }: {
+  activeRoutineId: string | null;
+  onSelectRoutine: (routineId: string) => void;
+  onWorkoutCancelled: () => void;
+  onWorkoutFinished: (summary: WorkoutSummary | null) => void;
   onCreateRoutine: () => void;
 }) => {
+  const qc = useQueryClient();
   const today = getDateString();
   const { data, isLoading } = useQuery({
     queryKey: ['home', today],
     queryFn: () => api.home(today),
   });
+
+  if (activeRoutineId) {
+    return (
+      <div data-testid="home-screen">
+        <Workout
+          routineId={activeRoutineId}
+          onFinished={async summary => {
+            await qc.invalidateQueries();
+            onWorkoutFinished(summary);
+          }}
+          onCancel={() => {
+            if (confirm('ワークアウトを中断しますか？記録は保存されません。')) onWorkoutCancelled();
+          }}
+        />
+      </div>
+    );
+  }
 
   if (isLoading || !data) return <Loading />;
 
@@ -68,13 +93,13 @@ export const Home = ({ onOpenWorkout, onCreateRoutine }: {
         />
       ) : null}
 
-      {data.due.map(item => <RoutineCard key={item.routine.id} item={item} state="due" onClick={onOpenWorkout} />)}
+      {data.due.map(item => <RoutineCard key={item.routine.id} item={item} state="due" onClick={onSelectRoutine} />)}
 
       {data.notScheduled.length > 0 && (
         <>
           <div className="muted" style={{ marginTop: 'var(--sp-3)', fontWeight: 'bold' }}>今日は予定なし</div>
           {data.notScheduled.map(item => (
-            <RoutineCard key={item.routine.id} item={item} state="later" onClick={onOpenWorkout} />
+            <RoutineCard key={item.routine.id} item={item} state="later" onClick={onSelectRoutine} />
           ))}
         </>
       )}
@@ -83,7 +108,7 @@ export const Home = ({ onOpenWorkout, onCreateRoutine }: {
         <>
           <div className="muted" style={{ marginTop: 'var(--sp-3)', fontWeight: 'bold' }}>完了</div>
           {data.completed.map(item => (
-            <RoutineCard key={item.routine.id} item={item} state="done" onClick={onOpenWorkout} />
+            <RoutineCard key={item.routine.id} item={item} state="done" onClick={onSelectRoutine} />
           ))}
         </>
       )}

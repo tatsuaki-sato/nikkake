@@ -5,7 +5,6 @@ import { api } from './lib';
 import { Home } from './routes/Home';
 import { Routines } from './routes/Routines';
 import { RoutineForm } from './routes/RoutineForm';
-import { Workout } from './routes/Workout';
 import { Summary } from './routes/Summary';
 import { Progress } from './routes/Progress';
 import { Settings } from './routes/Settings';
@@ -14,7 +13,6 @@ type Tab = 'home' | 'routines' | 'progress' | 'settings';
 type Overlay =
   | { kind: 'none' }
   | { kind: 'routineForm'; routineId: string | null }
-  | { kind: 'workout'; routineId: string }
   | { kind: 'summary'; summary: WorkoutSummary | null };
 
 const TABS: Array<{ id: Tab; label: string; icon: string }> = [
@@ -28,6 +26,9 @@ export const App = () => {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('home');
   const [overlay, setOverlay] = useState<Overlay>({ kind: 'none' });
+  // ホーム画面内でその場で開始する。別画面へ遷移しない代わりに、
+  // 実行中はタブ切り替えで入力中の記録が消えないよう下タブを隠す
+  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
 
   // 未送信の記録を送るタイミング:
   // オンライン復帰 / タブがフォアグラウンドに戻ったとき / 起動直後
@@ -51,20 +52,6 @@ export const App = () => {
     await qc.invalidateQueries();
   };
 
-  if (overlay.kind === 'workout') {
-    return (
-      <Shell tab={tab} onTab={setTab} hideNav>
-        <Workout
-          routineId={overlay.routineId}
-          onFinished={summary => setOverlay({ kind: 'summary', summary })}
-          onCancel={() => {
-            if (confirm('ワークアウトを中断しますか？記録は保存されません。')) void closeOverlay();
-          }}
-        />
-      </Shell>
-    );
-  }
-
   if (overlay.kind === 'summary') {
     return (
       <Shell tab={tab} onTab={setTab} hideNav>
@@ -82,10 +69,16 @@ export const App = () => {
   }
 
   return (
-    <Shell tab={tab} onTab={setTab} wide={tab === 'progress'}>
+    <Shell tab={tab} onTab={setTab} wide={tab === 'progress'} hideNav={activeWorkoutId !== null}>
       {tab === 'home' && (
         <Home
-          onOpenWorkout={id => setOverlay({ kind: 'workout', routineId: id })}
+          activeRoutineId={activeWorkoutId}
+          onSelectRoutine={setActiveWorkoutId}
+          onWorkoutCancelled={() => setActiveWorkoutId(null)}
+          onWorkoutFinished={summary => {
+            setActiveWorkoutId(null);
+            setOverlay({ kind: 'summary', summary });
+          }}
           onCreateRoutine={() => setOverlay({ kind: 'routineForm', routineId: null })}
         />
       )}
