@@ -10,10 +10,8 @@ import { Progress } from './routes/Progress';
 import { Settings } from './routes/Settings';
 
 type Tab = 'home' | 'routines' | 'progress' | 'settings';
-type Overlay =
-  | { kind: 'none' }
-  | { kind: 'routineForm'; routineId: string | null }
-  | { kind: 'summary'; summary: WorkoutSummary | null };
+/** 編集中のルーティン（無ければ新規作成） */
+type RoutineFormRoute = { routineId: string | null } | null;
 
 const TABS: Array<{ id: Tab; label: string; icon: string }> = [
   { id: 'home', label: 'ホーム', icon: '🏠' },
@@ -22,13 +20,41 @@ const TABS: Array<{ id: Tab; label: string; icon: string }> = [
   { id: 'settings', label: '設定', icon: '⚙️' },
 ];
 
+/**
+ * URLとタブ／overlayを対応させる。ブラウザの戻る・進む・直接URLを開く、が
+ * ちゃんと動くようにするための唯一の変換場所（他ではこの対応を持たない）。
+ */
+const pathForTab = (t: Tab) => (t === 'home' ? '/' : `/${t}`);
+const pathForRoutineForm = (routineId: string | null) => (routineId ? `/routines/${routineId}/edit` : '/routines/new');
+
+const parseLocation = (pathname: string): { tab: Tab; routineForm: RoutineFormRoute } => {
+  const editMatch = pathname.match(/^\/routines\/([^/]+)\/edit$/);
+  if (editMatch) return { tab: 'routines', routineForm: { routineId: editMatch[1] } };
+  if (pathname === '/routines/new') return { tab: 'routines', routineForm: { routineId: null } };
+  if (pathname === '/routines') return { tab: 'routines', routineForm: null };
+  if (pathname === '/progress') return { tab: 'progress', routineForm: null };
+  if (pathname === '/settings') return { tab: 'settings', routineForm: null };
+  return { tab: 'home', routineForm: null };
+};
+
 export const App = () => {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>('home');
-  const [overlay, setOverlay] = useState<Overlay>({ kind: 'none' });
-  // ホーム画面内でその場で開始する。別画面へ遷移しない代わりに、
-  // 実行中はタブ切り替えで入力中の記録が消えないよう下タブを隠す
-  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
+  const [{ tab, routineForm }, setRoute] = useState(() => parseLocation(window.location.pathname));
+  // ワークアウト完了直後の一覧画面。URLには対応させない
+  // （リロードで復元する意味の無い、一度きりの結果表示のため）
+  const [summary, setSummary] = useState<{ summary: WorkoutSummary | null } | null>(null);
+
+  // ブラウザの戻る・進むボタンに追従する
+  useEffect(() => {
+    const onPopState = () => setRoute(parseLocation(window.location.pathname));
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigate = (path: string) => {
+    if (path !== window.location.pathname) window.history.pushState(null, '', path);
+    setRoute(parseLocation(path));
+  };
 
   // 未送信の記録を送るタイミング:
   // オンライン復帰 / タブがフォアグラウンドに戻ったとき / 起動直後
@@ -47,45 +73,44 @@ export const App = () => {
     };
   }, [qc]);
 
-  const closeOverlay = async () => {
-    setOverlay({ kind: 'none' });
+  const closeRoutineForm = async () => {
+    navigate('/routines');
     await qc.invalidateQueries();
   };
 
-  if (overlay.kind === 'summary') {
+  const closeSummary = async () => {
+    setSummary(null);
+    await qc.invalidateQueries();
+  };
+
+  if (summary) {
     return (
-      <Shell tab={tab} onTab={setTab} hideNav>
-        <Summary summary={overlay.summary} onHome={closeOverlay} />
+      <Shell tab={tab} onTab={t => navigate(pathForTab(t))} hideNav>
+        <Summary summary={summary.summary} onHome={closeSummary} />
       </Shell>
     );
   }
 
-  if (overlay.kind === 'routineForm') {
+  if (routineForm) {
     return (
-      <Shell tab={tab} onTab={setTab}>
-        <RoutineForm routineId={overlay.routineId} onDone={closeOverlay} />
+      <Shell tab={tab} onTab={t => navigate(pathForTab(t))}>
+        <RoutineForm routineId={routineForm.routineId} onDone={closeRoutineForm} />
       </Shell>
     );
   }
 
   return (
-    <Shell tab={tab} onTab={setTab} wide={tab === 'progress'} hideNav={activeWorkoutId !== null}>
+    <Shell tab={tab} onTab={t => navigate(pathForTab(t))} wide={tab === 'progress'}>
       {tab === 'home' && (
         <Home
-          activeRoutineId={activeWorkoutId}
-          onSelectRoutine={setActiveWorkoutId}
-          onWorkoutCancelled={() => setActiveWorkoutId(null)}
-          onWorkoutFinished={summary => {
-            setActiveWorkoutId(null);
-            setOverlay({ kind: 'summary', summary });
-          }}
-          onCreateRoutine={() => setOverlay({ kind: 'routineForm', routineId: null })}
+          onWorkoutFinished={s => setSummary({ summary: s })}
+          onCreateRoutine={() => navigate(pathForRoutineForm(null))}
         />
       )}
       {tab === 'routines' && (
         <Routines
-          onEdit={id => setOverlay({ kind: 'routineForm', routineId: id })}
-          onCreate={() => setOverlay({ kind: 'routineForm', routineId: null })}
+          onEdit={id => navigate(pathForRoutineForm(id))}
+          onCreate={() => navigate(pathForRoutineForm(null))}
         />
       )}
       {tab === 'progress' && <Progress />}

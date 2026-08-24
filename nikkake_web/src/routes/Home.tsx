@@ -7,16 +7,13 @@ import { Workout } from './Workout';
 
 /**
  * ホーム。起動直後に見る画面。
- * 「今日やるルーティン」が並んでいて1タップで開始できることが、この画面の唯一の役目。
- * 区分（due / notScheduled / completed）はサーバが決めている。
  *
- * ワークアウトは別画面へ遷移せず、このホームの中でその場に展開して行う
- * （ルーティンを選ぶたびに画面が切り替わるのが面倒、というフィードバックへの対応）。
+ * タップやクリックで別の表示に切り替える、ということをしない。
+ * 今日のルーティンは、開いた瞬間からその種目のチェック欄がそのまま並んでいる
+ * （ここでの「ホーム画面」は、URLも中身も変わらない、この関数が返す1つの画面のみを指す）。
+ * 完了済みのルーティンもチェック欄は表示したままにする（やり直し・追加記録ができるように）。
  */
-export const Home = ({ activeRoutineId, onSelectRoutine, onWorkoutCancelled, onWorkoutFinished, onCreateRoutine }: {
-  activeRoutineId: string | null;
-  onSelectRoutine: (routineId: string) => void;
-  onWorkoutCancelled: () => void;
+export const Home = ({ onWorkoutFinished, onCreateRoutine }: {
   onWorkoutFinished: (summary: WorkoutSummary | null) => void;
   onCreateRoutine: () => void;
 }) => {
@@ -27,27 +24,15 @@ export const Home = ({ activeRoutineId, onSelectRoutine, onWorkoutCancelled, onW
     queryFn: () => api.home(today),
   });
 
-  if (activeRoutineId) {
-    return (
-      <div data-testid="home-screen">
-        <Workout
-          routineId={activeRoutineId}
-          onFinished={async summary => {
-            await qc.invalidateQueries();
-            onWorkoutFinished(summary);
-          }}
-          onCancel={() => {
-            if (confirm('ワークアウトを中断しますか？記録は保存されません。')) onWorkoutCancelled();
-          }}
-        />
-      </div>
-    );
-  }
-
   if (isLoading || !data) return <Loading />;
 
   const total = data.due.length + data.notScheduled.length + data.completed.length;
   const now = new Date();
+
+  const finish = async (summary: WorkoutSummary | null) => {
+    await qc.invalidateQueries();
+    onWorkoutFinished(summary);
+  };
 
   return (
     <div data-testid="home-screen">
@@ -93,13 +78,13 @@ export const Home = ({ activeRoutineId, onSelectRoutine, onWorkoutCancelled, onW
         />
       ) : null}
 
-      {data.due.map(item => <RoutineCard key={item.routine.id} item={item} state="due" onClick={onSelectRoutine} />)}
+      {data.due.map(item => <RoutineSection key={item.routine.id} item={item} state="due" onFinished={finish} />)}
 
       {data.notScheduled.length > 0 && (
         <>
           <div className="muted" style={{ marginTop: 'var(--sp-3)', fontWeight: 'bold' }}>今日は予定なし</div>
           {data.notScheduled.map(item => (
-            <RoutineCard key={item.routine.id} item={item} state="later" onClick={onSelectRoutine} />
+            <RoutineSection key={item.routine.id} item={item} state="later" onFinished={finish} />
           ))}
         </>
       )}
@@ -108,7 +93,7 @@ export const Home = ({ activeRoutineId, onSelectRoutine, onWorkoutCancelled, onW
         <>
           <div className="muted" style={{ marginTop: 'var(--sp-3)', fontWeight: 'bold' }}>完了</div>
           {data.completed.map(item => (
-            <RoutineCard key={item.routine.id} item={item} state="done" onClick={onSelectRoutine} />
+            <RoutineSection key={item.routine.id} item={item} state="done" onFinished={finish} />
           ))}
         </>
       )}
@@ -116,27 +101,25 @@ export const Home = ({ activeRoutineId, onSelectRoutine, onWorkoutCancelled, onW
   );
 };
 
-const RoutineCard = ({ item, state, onClick }: {
-  item: TodayRoutine; state: 'due' | 'later' | 'done'; onClick: (id: string) => void;
+const RoutineSection = ({ item, state, onFinished }: {
+  item: TodayRoutine;
+  state: 'due' | 'later' | 'done';
+  onFinished: (summary: WorkoutSummary | null) => void;
 }) => (
-  <button
-    className={`routine-card${state === 'due' ? '' : ' routine-card--muted'}`}
-    data-testid={`routine-card-${item.routine.id}`}
-    onClick={() => onClick(item.routine.id)}
-  >
-    <span className="routine-card__icon" style={{ backgroundColor: item.routine.color }}>
-      {item.routine.icon}
-    </span>
-    <span className="routine-card__body">
-      <span className="routine-card__name">{item.routine.name}</span>
-      <div className="muted">
-        {state === 'done'
-          ? '今日は完了しました'
-          : `${item.frequencyLabel} ・ ${item.routine.routineExercises.length}種目`}
-      </div>
-    </span>
-    <span style={{ fontSize: 18, color: state === 'done' ? undefined : 'var(--primary-light)' }}>
-      {state === 'done' ? '✅' : '▶'}
-    </span>
-  </button>
+  <div style={{ marginTop: 'var(--sp-4)', opacity: state === 'due' ? 1 : 0.75 }}>
+    <div className="row" data-testid={`routine-card-${item.routine.id}`}>
+      <span className="routine-card__icon" style={{ backgroundColor: item.routine.color }}>
+        {item.routine.icon}
+      </span>
+      <span className="routine-card__body">
+        <span className="routine-card__name">{item.routine.name}</span>
+        <div className="muted">
+          {state === 'done' ? '✅ 今日は完了しました' : `${item.frequencyLabel} ・ ${item.routine.routineExercises.length}種目`}
+        </div>
+      </span>
+    </div>
+    <div style={{ marginTop: 'var(--sp-3)' }}>
+      <Workout routineId={item.routine.id} onFinished={onFinished} />
+    </div>
+  </div>
 );

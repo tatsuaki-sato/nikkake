@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { formatDuration, getDateString, uuid } from '@nikkake/domain';
 import type { RecordedSetInput, WorkoutSummary } from '@nikkake/api-client';
 import { api } from '../lib';
-import { Card, Button, EmptyState, Loading } from '../components/ui';
+import { Card, EmptyState, Loading } from '../components/ui';
 
 interface SetState {
   id: string;
@@ -15,16 +15,15 @@ interface SetState {
 }
 
 /**
- * ワークアウト実行画面。
- * 記録はオフラインでもキューに積まれるので、圏外でも操作が失われない。
+ * ワークアウトのチェック欄。ホーム画面の各ルーティンの下に常時そのまま表示される
+ * （別画面へ切り替える・タップで開く、という操作を挟まない。「1画面で全部やりたい」
+ * という要望への対応）。記録はオフラインでもキューに積まれるので、圏外でも操作が失われない。
  *
  * 全種目のチェック欄を一度に表示する（スクロールだけで全種目に届く）。
- * 種目を1つずつタブでめくる形は「1画面で全部やりたい」という要望に合わないため廃止した。
  */
-export const Workout = ({ routineId, onFinished, onCancel }: {
+export const Workout = ({ routineId, onFinished }: {
   routineId: string;
   onFinished: (summary: WorkoutSummary | null) => void;
-  onCancel: () => void;
 }) => {
   const { data, isLoading } = useQuery({
     queryKey: ['workoutSession', routineId],
@@ -88,9 +87,8 @@ export const Workout = ({ routineId, onFinished, onCancel }: {
       <EmptyState
         testId="workout-not-found"
         icon="🤔"
-        title="開始できませんでした"
-        message="種目が登録されていません。"
-        action={<Button label="戻る" onClick={onCancel} />}
+        title="種目が登録されていません"
+        message="ルーティンの編集から種目を追加してください。"
       />
     );
   }
@@ -143,13 +141,8 @@ export const Workout = ({ routineId, onFinished, onCancel }: {
   return (
     <div data-testid="workout-screen">
       <div className="row" style={{ marginBottom: 'var(--sp-3)' }}>
-        <button className="btn btn--ghost" style={{ width: 'auto' }} onClick={onCancel} data-testid="workout-cancel">
-          中断
-        </button>
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontWeight: 'bold' }}>{data.routine.name}</div>
-          <div className="muted" data-testid="workout-elapsed">{formatDuration(elapsed)}</div>
-        </div>
+        <div className="muted" data-testid="workout-elapsed">{formatDuration(elapsed)}</div>
+        <div style={{ flex: 1 }} />
         <button className="btn" style={{ width: 'auto' }} onClick={finish} disabled={saving} data-testid="workout-finish">
           完了
         </button>
