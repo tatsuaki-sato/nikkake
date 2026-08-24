@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { WorkoutSummary } from '@nikkake/api-client';
 import { api } from './lib';
 import { Home } from './routes/Home';
 import { Routines } from './routes/Routines';
 import { RoutineForm } from './routes/RoutineForm';
-import { Summary } from './routes/Summary';
 import { Progress } from './routes/Progress';
 import { Settings } from './routes/Settings';
 
@@ -55,9 +53,6 @@ export const App = () => {
   const [{ tab, routineForm }, setRoute] = useState(
     () => parseLocation(window.location.pathname, window.location.search),
   );
-  // ワークアウト完了直後の一覧画面。URLには対応させない
-  // （リロードで復元する意味の無い、一度きりの結果表示のため）
-  const [summary, setSummary] = useState<{ summary: WorkoutSummary | null } | null>(null);
 
   // ブラウザの戻る・進むボタンに追従する
   useEffect(() => {
@@ -96,19 +91,6 @@ export const App = () => {
     await qc.invalidateQueries();
   };
 
-  const closeSummary = async () => {
-    setSummary(null);
-    await qc.invalidateQueries();
-  };
-
-  if (summary) {
-    return (
-      <Shell tab={tab} onTab={t => navigate(pathForTab(t))} hideNav>
-        <Summary summary={summary.summary} onHome={closeSummary} />
-      </Shell>
-    );
-  }
-
   if (routineForm) {
     return (
       <Shell tab={tab} onTab={t => navigate(pathForTab(t))}>
@@ -120,10 +102,7 @@ export const App = () => {
   return (
     <Shell tab={tab} onTab={t => navigate(pathForTab(t))} wide={tab === 'progress'}>
       {tab === 'home' && (
-        <Home
-          onWorkoutFinished={s => setSummary({ summary: s })}
-          onCreateRoutine={() => navigate(pathForRoutineForm(null))}
-        />
+        <Home onCreateRoutine={() => navigate(pathForRoutineForm(null))} />
       )}
       {tab === 'routines' && (
         <Routines

@@ -134,6 +134,8 @@ input { font-family: inherit; }
 
 .set-row { display: grid; grid-template-columns: 48px 1fr 1fr 64px; gap: var(--sp-2); align-items: center;
   padding: var(--sp-2) 0; border-top: 1px solid var(--border); }
+/* 有酸素・ゲーム系は重量(kg)欄が無いので3列にする */
+.set-row--no-weight { grid-template-columns: 48px 1fr 64px; }
 .set-row--done { background: var(--surface-elevated); }
 .set-input { width: 100%; padding: var(--sp-2); text-align: center; font-size: 16px;
   background: var(--bg); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--r-sm); }

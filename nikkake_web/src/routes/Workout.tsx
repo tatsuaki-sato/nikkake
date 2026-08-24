@@ -21,9 +21,13 @@ interface SetState {
  *
  * 全種目のチェック欄を一度に表示する（スクロールだけで全種目に届く）。
  */
-export const Workout = ({ routineId, onFinished }: {
+export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
   routineId: string;
-  onFinished: (summary: WorkoutSummary | null) => void;
+  // 完了直後の結果。ルーティンが「今日やる」→「完了」へ移ると、このコンポーネントは
+  // 一度アンマウント・再マウントされるため、コンポーネント内には持たずHomeから受け取る
+  result: WorkoutSummary | 'offline' | null;
+  onFinished: (result: WorkoutSummary | 'offline') => void;
+  onDismissResult: () => void;
 }) => {
   const { data, isLoading } = useQuery({
     queryKey: ['workoutSession', routineId],
@@ -39,6 +43,8 @@ export const Workout = ({ routineId, onFinished }: {
 
   const [sets, setSets] = useState<SetState[][]>([]);
   const [elapsed, setElapsed] = useState(0);
+  // タイマーはホームを開いた瞬間ではなく、人間が「開始」を押した時だけ進む
+  const [running, setRunning] = useState(false);
   const [rest, setRest] = useState(0);
   const [saving, setSaving] = useState(false);
   const startedAt = useRef(new Date().toISOString());
@@ -67,14 +73,15 @@ export const Workout = ({ routineId, onFinished }: {
     );
   }, [data]);
 
-  // 経過時間とレストタイマーを1本のintervalで進める
+  // 経過時間とレストタイマーを1本のintervalで進める。一時停止中は進めない
   useEffect(() => {
+    if (!running) return;
     const timer = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - Date.parse(startedAt.current)) / 1000));
+      setElapsed(v => v + 1);
       setRest(v => (v > 0 ? v - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [running]);
 
   const totals = useMemo(() => {
     const all = sets.flat();
@@ -125,7 +132,7 @@ export const Workout = ({ routineId, onFinished }: {
         })),
     );
 
-    const result = await api.recordWorkout({
+    const recorded = await api.recordWorkout({
       routineId,
       logDate: getDateString(),
       startedAt: startedAt.current,
@@ -135,18 +142,48 @@ export const Workout = ({ routineId, onFinished }: {
     });
 
     setSaving(false);
-    onFinished(result.data?.summary ?? null);
+    setRunning(false);
+    onFinished(recorded.data?.summary ?? 'offline');
   };
 
   return (
     <div data-testid="workout-screen">
       <div className="row" style={{ marginBottom: 'var(--sp-3)' }}>
-        <div className="muted" data-testid="workout-elapsed">{formatDuration(elapsed)}</div>
+        <button className="btn btn--ghost" style={{ width: 'auto' }}
+                onClick={() => setRunning(v => !v)} data-testid="workout-timer-toggle">
+          {running ? '⏸ 一時停止' : '▶ 開始'}
+        </button>
+        <div className="muted" data-testid="workout-elapsed" style={{ marginLeft: 'var(--sp-2)' }}>
+          {formatDuration(elapsed)}
+        </div>
         <div style={{ flex: 1 }} />
         <button className="btn" style={{ width: 'auto' }} onClick={finish} disabled={saving} data-testid="workout-finish">
           完了
         </button>
       </div>
+
+      {result && (
+        <div className="card card--elevated" style={{ marginBottom: 'var(--sp-3)', textAlign: 'center' }}
+             data-testid="workout-result" onClick={onDismissResult}>
+          {result === 'offline' ? (
+            <>
+              <div style={{ fontWeight: 'bold' }}>📥 記録しました</div>
+              <div className="muted">オフラインのため、まだサーバへ送れていません。オンラインになったら自動で送信されます。</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 'bold' }} data-testid="workout-result-status">
+                {result.status === 'COMPLETED' ? '🎉 コンプリート！' : result.status === 'PARTIAL' ? '💪 記録しました' : '記録なし'}
+              </div>
+              <div className="muted" data-testid="workout-result-sets">
+                {formatDuration(result.durationSec)} ・ {result.completedSets}/{result.totalSets}セット
+                {result.totalVolume > 0 ? ` ・ ${Math.round(result.totalVolume)}kg` : ''}
+              </div>
+            </>
+          )}
+          <div className="muted" style={{ marginTop: 'var(--sp-2)' }}>タップで閉じる</div>
+        </div>
+      )}
 
       <div style={{ height: 4, background: 'var(--surface)', borderRadius: 2 }}>
         <div style={{
@@ -167,6 +204,9 @@ export const Workout = ({ routineId, onFinished }: {
       {data.exercises.map((exercise, i) => {
         const exerciseSets = sets[i] ?? [];
         const isTimeBased = exercise.targetDurationSec !== null;
+        // 有酸素・ゲーム系はルーティン設定と同じく重量(kg)欄を出さない
+        const category = exercise.exercise.category;
+        const hasNoWeight = category === 'CARDIO' || category === 'GAME';
         const allDone = exerciseSets.length > 0 && exerciseSets.every(s => s.completed);
 
         return (
@@ -181,23 +221,26 @@ export const Workout = ({ routineId, onFinished }: {
 
             <div style={{ marginTop: 'var(--sp-3)' }}>
               <Card>
-                <div className="set-row" style={{ borderTop: 'none' }}>
+                <div className={`set-row${hasNoWeight ? ' set-row--no-weight' : ''}`} style={{ borderTop: 'none' }}>
                   <div className="muted">セット</div>
-                  <div className="muted" style={{ textAlign: 'center' }}>kg</div>
+                  {!hasNoWeight && <div className="muted" style={{ textAlign: 'center' }}>kg</div>}
                   <div className="muted" style={{ textAlign: 'center' }}>{isTimeBased ? '秒' : '回'}</div>
                   <div className="muted" style={{ textAlign: 'center' }}>完了</div>
                 </div>
 
                 {exerciseSets.map(s => (
-                  <div key={s.setNumber} className={`set-row${s.completed ? ' set-row--done' : ''}`}
+                  <div key={s.setNumber}
+                       className={`set-row${hasNoWeight ? ' set-row--no-weight' : ''}${s.completed ? ' set-row--done' : ''}`}
                        data-testid={`set-row-${i}-${s.setNumber}`}>
                     <div style={{ textAlign: 'center' }} className="muted">{s.setNumber}</div>
-                    <input
-                      className="set-input" inputMode="decimal" placeholder="自重"
-                      value={s.weight ?? ''}
-                      onChange={e => patch(i, s.setNumber, { weight: e.target.value === '' ? null : Number(e.target.value) })}
-                      data-testid={`set-weight-${i}-${s.setNumber}`}
-                    />
+                    {!hasNoWeight && (
+                      <input
+                        className="set-input" inputMode="decimal" placeholder="自重"
+                        value={s.weight ?? ''}
+                        onChange={e => patch(i, s.setNumber, { weight: e.target.value === '' ? null : Number(e.target.value) })}
+                        data-testid={`set-weight-${i}-${s.setNumber}`}
+                      />
+                    )}
                     {isTimeBased ? (
                       <input
                         className="set-input" inputMode="numeric"

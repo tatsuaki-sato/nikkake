@@ -14,31 +14,38 @@ const freshVisit = async (page: Page) => {
 
 const openTab = (page: Page, label: string) => page.getByRole('tab', { name: label }).click();
 
-const startWorkout = async (page: Page) => {
-  await page.getByText('いつものルーティン').click();
-  await expect(page.getByTestId('workout-screen')).toBeVisible();
-};
-
 test.describe('ワークアウト', () => {
   test.beforeEach(async ({ page }) => {
     await freshVisit(page);
   });
 
-  test('初期ルーティンが1タップで開始できる', async ({ page }) => {
-    await expect(page.getByText('いつものルーティン')).toBeVisible();
-    await startWorkout(page);
-
+  test('タップ・クリック無しで、ホームを開いた瞬間から全種目のチェック欄が見える', async ({ page }) => {
+    await expect(page.getByTestId('workout-screen')).toBeVisible();
     await expect(page.getByTestId('workout-exercise-name-0')).toContainText('1/4');
     await expect(page.getByTestId('workout-exercise-name-0')).toContainText('腕立て伏せ');
 
-    // 1画面で全種目に届くこと（タブ切り替え無しで4種目目まで見える）
+    // 4種目目まで、タブ切り替え無しでスクロールだけで見える
     await expect(page.getByTestId('workout-exercise-name-3')).toContainText('プランク');
     await expect(page.getByTestId('set-check-3-1')).toBeVisible();
   });
 
-  test('セットを完了にすると休憩タイマーが自動で始まる', async ({ page }) => {
-    await startWorkout(page);
+  test('タイマーは「開始」を押すまで進まず、一時停止できる', async ({ page }) => {
+    await expect(page.getByTestId('workout-elapsed')).toHaveText('0:00');
+    await page.waitForTimeout(1200);
+    await expect(page.getByTestId('workout-elapsed')).toHaveText('0:00');
 
+    await page.getByTestId('workout-timer-toggle').click();
+    await page.waitForTimeout(1200);
+    await expect(page.getByTestId('workout-elapsed')).not.toHaveText('0:00');
+
+    await page.getByTestId('workout-timer-toggle').click();
+    const pausedAt = await page.getByTestId('workout-elapsed').textContent();
+    await page.waitForTimeout(1200);
+    await expect(page.getByTestId('workout-elapsed')).toHaveText(pausedAt ?? '');
+  });
+
+  test('セットを完了にすると休憩タイマーが自動で始まる', async ({ page }) => {
+    await page.getByTestId('workout-timer-toggle').click();
     await expect(page.getByTestId('rest-timer')).toHaveCount(0);
     await page.getByTestId('set-check-0-1').click();
     await expect(page.getByTestId('rest-timer')).toBeVisible();
@@ -49,15 +56,32 @@ test.describe('ワークアウト', () => {
   });
 
   test('時間計測の種目は秒の入力欄になる', async ({ page }) => {
-    await startWorkout(page);
-
     await expect(page.getByTestId('set-duration-3-1')).toBeVisible();
     await expect(page.getByTestId('set-reps-3-1')).toHaveCount(0);
   });
 
-  test('セットを増減できる。1本未満にはならない', async ({ page }) => {
-    await startWorkout(page);
+  test('有酸素・ゲーム系の種目は重量(kg)欄が無い', async ({ page }) => {
+    // 「いつものルーティン」は全部ジム系(STRENGTH)なので、重量欄が出ている
+    await expect(page.getByTestId('set-weight-0-1')).toBeVisible();
 
+    // ゲーム系(Just Dance)の種目を持つルーティンを作ると、重量欄が無い
+    await openTab(page, 'ルーティン');
+    await page.getByTestId('routines-fab').click();
+    await page.getByTestId('routine-name-input').fill('ゲームで運動');
+    await page.getByTestId('add-exercise-button').click();
+    await page.getByTestId('exercise-picker').getByText('Just Dance').click();
+    await page.getByTestId('routine-submit').click();
+    await expect(page.getByTestId('routines-screen')).toBeVisible();
+
+    await openTab(page, 'ホーム');
+    await expect(page.getByText('ゲームで運動')).toBeVisible();
+    // このルーティンには種目が1つだけなので、そのWorkoutの中ではindex 0。
+    // 重量欄が無い分、set-weight-0-1は「いつものルーティン」側の1つだけになる
+    await expect(page.getByTestId('set-duration-0-1')).toBeVisible();
+    await expect(page.getByTestId('set-weight-0-1')).toHaveCount(1);
+  });
+
+  test('セットを増減できる。1本未満にはならない', async ({ page }) => {
     await expect(page.locator('[data-testid^="set-row-0-"]')).toHaveCount(3);
     await page.getByTestId('add-set-0').click();
     await expect(page.locator('[data-testid^="set-row-0-"]')).toHaveCount(4);
@@ -67,39 +91,31 @@ test.describe('ワークアウト', () => {
   });
 
   test('休憩タイマーは操作した種目自身の休憩時間を使う', async ({ page }) => {
-    await startWorkout(page);
-
     await expect(page.getByTestId('rest-timer')).toHaveCount(0);
     await page.getByTestId('set-check-3-1').click(); // プランク（先頭ではない種目）
     await expect(page.getByTestId('rest-timer')).toBeVisible();
   });
 
-  test('記録するとサマリーが出て、ホームで完了扱いになる', async ({ page }) => {
-    await startWorkout(page);
-
+  test('記録すると、別画面へ飛ばずその場に結果が出て、ホームで完了扱いになる', async ({ page }) => {
     await page.getByTestId('set-weight-0-1').fill('42');
     await page.getByTestId('set-check-0-1').click();
     await page.getByTestId('workout-finish').click();
 
-    await expect(page.getByTestId('summary-screen')).toBeVisible();
-    // 全セットではないので PARTIAL
-    await expect(page.getByTestId('summary-status')).toHaveText('記録しました');
-    await expect(page.getByTestId('summary-sets')).toHaveText('1/11');
-
-    await page.getByTestId('summary-home').click();
+    // 別画面へは飛ばない。ホームのまま
     await expect(page.getByTestId('home-screen')).toBeVisible();
+    // 全セットではないので PARTIAL
+    await expect(page.getByTestId('workout-result')).toBeVisible();
+    await expect(page.getByTestId('workout-result-status')).toContainText('記録しました');
+    await expect(page.getByTestId('workout-result-sets')).toContainText('1/11セット');
+
     await expect(page.getByText('今日は完了しました')).toBeVisible();
     await expect(page.getByTestId('streak-count')).toHaveText('1 日');
   });
 
   test('前回の記録が次回の初期値になる（サーバが解決する）', async ({ page }) => {
-    await startWorkout(page);
     await page.getByTestId('set-weight-0-1').fill('37');
     await page.getByTestId('set-check-0-1').click();
     await page.getByTestId('workout-finish').click();
-    await page.getByTestId('summary-home').click();
-
-    await startWorkout(page);
 
     await expect(page.getByTestId('set-weight-0-1')).toHaveValue('37');
     await expect(page.getByTestId('workout-previous-hint-0')).toContainText('前回');
@@ -110,10 +126,8 @@ test.describe('ワークアウト', () => {
     await expect(page.getByTestId('progress-empty')).toBeVisible();
 
     await openTab(page, 'ホーム');
-    await startWorkout(page);
     await page.getByTestId('set-check-0-1').click();
     await page.getByTestId('workout-finish').click();
-    await page.getByTestId('summary-home').click();
 
     await openTab(page, '進捗');
     await expect(page.getByTestId('progress-total')).toHaveText('1回');
@@ -126,16 +140,14 @@ test.describe('ワークアウト', () => {
 test.describe('オフライン記録', () => {
   test('圏外でも記録でき、復帰時に送信される', async ({ page, context }) => {
     await freshVisit(page);
-    await startWorkout(page);
     await page.getByTestId('set-check-0-1').click();
 
     // ここから圏外
     await context.setOffline(true);
     await page.getByTestId('workout-finish').click();
 
-    // サーバが集計できないのでサマリーはオフライン表示になる
-    await expect(page.getByTestId('summary-offline')).toBeVisible();
-    await page.getByTestId('summary-home').click();
+    // サーバが集計できないので結果はオフライン表示になる
+    await expect(page.getByTestId('workout-result')).toContainText('オフラインのため');
 
     // キューに1件溜まっている
     const pending = await page.evaluate(() => {
@@ -145,7 +157,9 @@ test.describe('オフライン記録', () => {
     expect(pending).toBe(1);
 
     // オンラインへ復帰すると送信される
+    // （setOfflineの解除がブラウザのネットワーク層に反映されるまで一瞬かかることがある）
     await context.setOffline(false);
+    await page.waitForTimeout(300);
     await page.reload();
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
 
@@ -195,4 +209,3 @@ test.describe('オフラインでのルーティン作成', () => {
     await expect(page.getByTestId('routines-screen')).toContainText('圏外で作ろうとしたルーティン');
   });
 });
-
