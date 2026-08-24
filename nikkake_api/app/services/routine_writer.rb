@@ -65,7 +65,13 @@ class RoutineWriter
   private
 
   def replace_exercises(routine, exercises)
-    routine.routine_exercises.kept.find_each(&:soft_delete!)
+    incoming_ids = (exercises || []).filter_map { |e| e[:id] }
+
+    # 送られてこなかった分だけ論理削除する。
+    # 全部を一律で論理削除してから同じidで再挿入すると、論理削除は行を
+    # 物理的に消さないため主キーが衝突し、insert_all がON CONFLICT DO NOTHING
+    # で黙ってスキップしていた（既存の種目が復活しないまま消える不具合があった）
+    routine.routine_exercises.kept.where.not(id: incoming_ids).find_each(&:soft_delete!)
     return if exercises.blank?
 
     now = Time.current
@@ -81,10 +87,12 @@ class RoutineWriter
         target_weight: e[:target_weight],
         target_duration_sec: e[:target_duration_sec],
         rest_sec: e[:rest_sec] || DEFAULT_REST_SEC,
+        deleted_at: nil,
         created_at: now,
         updated_at: now
       }
     end
-    RoutineExercise.insert_all(rows, unique_by: :id)
+    # 既存のidなら復活・更新、新規のidなら挿入（insert_allは衝突時に何もしないため使えない）
+    RoutineExercise.upsert_all(rows, unique_by: :id)
   end
 end

@@ -203,6 +203,25 @@ RSpec.describe "ワークアウトの記録と集計" do
   end
 
   describe RoutineWriter do
+    it "既存の種目を残したまま種目を追加しても、既存の種目が消えない" do
+      writer = described_class.new(user: user)
+      existing = routine.routine_exercises.kept.ordered.to_a
+      squat_id = "00000000-0000-4000-8000-000000000009"
+
+      writer.update(routine, {
+        name: routine.name, icon: routine.icon, color: routine.color,
+        frequency_type: "daily", frequency_value: 1, frequency_days: [],
+        lock_version: routine.lock_version,
+        exercises: existing.map { |re|
+          { id: re.id, exercise_id: re.exercise_id, target_sets: re.target_sets, target_reps: re.target_reps }
+        } + [ { id: SecureRandom.uuid, exercise_id: squat_id, target_sets: 3, target_reps: 10 } ]
+      })
+
+      kept = routine.routine_exercises.kept.reload
+      expect(kept.count).to eq(existing.size + 1)
+      expect(kept.map(&:exercise_id)).to include(*existing.map(&:exercise_id), squat_id)
+    end
+
     it "他端末で更新されていたら弾く（楽観ロック）" do
       writer = described_class.new(user: user)
       stale_version = routine.lock_version
