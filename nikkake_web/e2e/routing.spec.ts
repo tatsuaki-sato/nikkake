@@ -14,29 +14,34 @@ const freshVisit = async (page: Page, path = '/') => {
 
 /**
  * URLで各画面を直接指定できること。
- * リロードや直接アクセスでも同じ画面が開く必要があるため、Renderの
- * 静的サイトホスティング側でも `public/_redirects` によるSPA rewriteが要る。
+ *
+ * `/routines/`のような各パスは、vite.config.tsのビルド時プラグインで
+ * index.htmlのコピーを実ファイルとして`dist/routines/index.html`等に
+ * 生成しているため、ホスティング先のSPAリライト設定に頼らず直接開ける
+ * （このテストは`npm run dev`のVite開発サーバーに対して動くが、Viteの
+ * デフォルトのSPAフォールバックでも同じ結果になる。本番相当の確認は
+ * `npm run build && npx vite preview`に対して手動で行うこと）。
  */
 test.describe('URLによる画面遷移', () => {
   test('各タブのURLを直接開ける', async ({ page }) => {
     await freshVisit(page);
 
-    await page.goto('/routines');
+    await page.goto('/routines/');
     await expect(page.getByTestId('routines-screen')).toBeVisible();
 
-    await page.goto('/progress');
+    await page.goto('/progress/');
     await expect(page.getByTestId('progress-empty')).toBeVisible();
 
-    await page.goto('/settings');
+    await page.goto('/settings/');
     await expect(page.getByTestId('settings-anonymous-card')).toBeVisible();
 
     await page.goto('/');
     await expect(page.getByTestId('home-screen')).toBeVisible();
   });
 
-  test('/routines/new を直接開くとルーティン作成フォームが開く', async ({ page }) => {
+  test('/routines/?new=1 を直接開くとルーティン作成フォームが開く', async ({ page }) => {
     await freshVisit(page);
-    await page.goto('/routines/new');
+    await page.goto('/routines/?new=1');
     await expect(page.getByTestId('routine-form')).toBeVisible();
     await expect(page.getByTestId('routine-name-input')).toHaveValue('');
   });
@@ -45,13 +50,13 @@ test.describe('URLによる画面遷移', () => {
     await freshVisit(page);
 
     await page.getByRole('tab', { name: 'ルーティン' }).click();
-    await expect(page).toHaveURL(/\/routines$/);
+    await expect(page).toHaveURL(/\/routines\/$/);
 
     await page.getByRole('tab', { name: '進捗' }).click();
-    await expect(page).toHaveURL(/\/progress$/);
+    await expect(page).toHaveURL(/\/progress\/$/);
 
     await page.goBack();
-    await expect(page).toHaveURL(/\/routines$/);
+    await expect(page).toHaveURL(/\/routines\/$/);
 
     await page.goBack();
     await expect(page).toHaveURL(/\/$/);

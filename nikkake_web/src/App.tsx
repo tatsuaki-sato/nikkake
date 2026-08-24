@@ -23,37 +23,55 @@ const TABS: Array<{ id: Tab; label: string; icon: string }> = [
 /**
  * URLとタブ／overlayを対応させる。ブラウザの戻る・進む・直接URLを開く、が
  * ちゃんと動くようにするための唯一の変換場所（他ではこの対応を持たない）。
+ *
+ * タブは末尾に`/`を付けたディレクトリ形式にする（`/routines/`）。
+ * vite.config.tsのビルド時に`dist/routines/index.html`を実ファイルとして
+ * 複製しているので、ホスティング先の設定に頼らず直接開ける。
+ * ルーティン編集はパスを増やさず、`/routines/`にクエリパラメータを乗せる
+ * （`?new=1` / `?edit=<id>`）。動的なパス（ルーティンIDごとのURL）は
+ * 実ファイルを用意できないため。
  */
-const pathForTab = (t: Tab) => (t === 'home' ? '/' : `/${t}`);
-const pathForRoutineForm = (routineId: string | null) => (routineId ? `/routines/${routineId}/edit` : '/routines/new');
+const pathForTab = (t: Tab) => (t === 'home' ? '/' : `/${t}/`);
+const pathForRoutineForm = (routineId: string | null) =>
+  routineId ? `/routines/?edit=${encodeURIComponent(routineId)}` : '/routines/?new=1';
 
-const parseLocation = (pathname: string): { tab: Tab; routineForm: RoutineFormRoute } => {
-  const editMatch = pathname.match(/^\/routines\/([^/]+)\/edit$/);
-  if (editMatch) return { tab: 'routines', routineForm: { routineId: editMatch[1] } };
-  if (pathname === '/routines/new') return { tab: 'routines', routineForm: { routineId: null } };
-  if (pathname === '/routines') return { tab: 'routines', routineForm: null };
-  if (pathname === '/progress') return { tab: 'progress', routineForm: null };
-  if (pathname === '/settings') return { tab: 'settings', routineForm: null };
-  return { tab: 'home', routineForm: null };
+const parseLocation = (pathname: string, search: string): { tab: Tab; routineForm: RoutineFormRoute } => {
+  const tab: Tab = pathname === '/routines/' ? 'routines'
+    : pathname === '/progress/' ? 'progress'
+    : pathname === '/settings/' ? 'settings'
+    : 'home';
+
+  if (tab === 'routines') {
+    const params = new URLSearchParams(search);
+    if (params.has('new')) return { tab, routineForm: { routineId: null } };
+    const editId = params.get('edit');
+    if (editId) return { tab, routineForm: { routineId: editId } };
+  }
+  return { tab, routineForm: null };
 };
 
 export const App = () => {
   const qc = useQueryClient();
-  const [{ tab, routineForm }, setRoute] = useState(() => parseLocation(window.location.pathname));
+  const [{ tab, routineForm }, setRoute] = useState(
+    () => parseLocation(window.location.pathname, window.location.search),
+  );
   // ワークアウト完了直後の一覧画面。URLには対応させない
   // （リロードで復元する意味の無い、一度きりの結果表示のため）
   const [summary, setSummary] = useState<{ summary: WorkoutSummary | null } | null>(null);
 
   // ブラウザの戻る・進むボタンに追従する
   useEffect(() => {
-    const onPopState = () => setRoute(parseLocation(window.location.pathname));
+    const onPopState = () => setRoute(parseLocation(window.location.pathname, window.location.search));
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
   const navigate = (path: string) => {
-    if (path !== window.location.pathname) window.history.pushState(null, '', path);
-    setRoute(parseLocation(path));
+    const url = new URL(path, window.location.origin);
+    if (url.pathname + url.search !== window.location.pathname + window.location.search) {
+      window.history.pushState(null, '', path);
+    }
+    setRoute(parseLocation(url.pathname, url.search));
   };
 
   // 未送信の記録を送るタイミング:
@@ -74,7 +92,7 @@ export const App = () => {
   }, [qc]);
 
   const closeRoutineForm = async () => {
-    navigate('/routines');
+    navigate('/routines/');
     await qc.invalidateQueries();
   };
 
