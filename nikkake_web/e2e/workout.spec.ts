@@ -28,8 +28,12 @@ test.describe('ワークアウト', () => {
     await expect(page.getByText('いつものルーティン')).toBeVisible();
     await startWorkout(page);
 
-    await expect(page.getByTestId('workout-exercise-name')).toContainText('1/4');
-    await expect(page.getByTestId('workout-exercise-name')).toContainText('腕立て伏せ');
+    await expect(page.getByTestId('workout-exercise-name-0')).toContainText('1/4');
+    await expect(page.getByTestId('workout-exercise-name-0')).toContainText('腕立て伏せ');
+
+    // 1画面で全種目に届くこと（タブ切り替え無しで4種目目まで見える）
+    await expect(page.getByTestId('workout-exercise-name-3')).toContainText('プランク');
+    await expect(page.getByTestId('set-check-3-1')).toBeVisible();
   });
 
   test('セットを完了にすると休憩タイマーが自動で始まる', async ({ page }) => {
@@ -46,7 +50,6 @@ test.describe('ワークアウト', () => {
 
   test('時間計測の種目は秒の入力欄になる', async ({ page }) => {
     await startWorkout(page);
-    await page.getByTestId('workout-tab-3').click(); // プランク
 
     await expect(page.getByTestId('set-duration-3-1')).toBeVisible();
     await expect(page.getByTestId('set-reps-3-1')).toHaveCount(0);
@@ -56,11 +59,19 @@ test.describe('ワークアウト', () => {
     await startWorkout(page);
 
     await expect(page.locator('[data-testid^="set-row-0-"]')).toHaveCount(3);
-    await page.getByTestId('add-set').click();
+    await page.getByTestId('add-set-0').click();
     await expect(page.locator('[data-testid^="set-row-0-"]')).toHaveCount(4);
 
-    for (let i = 0; i < 5; i++) await page.getByTestId('remove-set').click();
+    for (let i = 0; i < 5; i++) await page.getByTestId('remove-set-0').click();
     await expect(page.locator('[data-testid^="set-row-0-"]')).toHaveCount(1);
+  });
+
+  test('休憩タイマーは操作した種目自身の休憩時間を使う', async ({ page }) => {
+    await startWorkout(page);
+
+    await expect(page.getByTestId('rest-timer')).toHaveCount(0);
+    await page.getByTestId('set-check-3-1').click(); // プランク（先頭ではない種目）
+    await expect(page.getByTestId('rest-timer')).toBeVisible();
   });
 
   test('記録するとサマリーが出て、ホームで完了扱いになる', async ({ page }) => {
@@ -91,7 +102,7 @@ test.describe('ワークアウト', () => {
     await startWorkout(page);
 
     await expect(page.getByTestId('set-weight-0-1')).toHaveValue('37');
-    await expect(page.getByTestId('workout-previous-hint')).toContainText('前回');
+    await expect(page.getByTestId('workout-previous-hint-0')).toContainText('前回');
   });
 
   test('記録は進捗画面に反映される', async ({ page }) => {
