@@ -112,6 +112,30 @@ test.describe('ワークアウト', () => {
     await expect(page.getByTestId('streak-count')).toHaveText('1 日');
   });
 
+  test('日付を過去に変えて記録すると、今日の分はまだ未完了のまま残る', async ({ page }) => {
+    const dateInput = page.getByTestId('workout-log-date');
+    const today = await dateInput.inputValue();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+    await dateInput.fill(yesterdayStr);
+    await page.getByTestId('set-check-0-1').click();
+    await page.getByTestId('workout-finish').click();
+
+    await expect(page.getByTestId('workout-result')).toBeVisible();
+    // 昨日の分として記録したので、今日はまだ完了扱いにならない
+    await expect(page.getByText('今日は完了しました')).toHaveCount(0);
+    // 連続記録は「直近に記録した日」からの日数なので、昨日の分でも1日になる
+    await expect(page.getByTestId('streak-count')).toHaveText('1 日');
+  });
+
+  test('日付欄は未来の日付を選べない', async ({ page }) => {
+    const dateInput = page.getByTestId('workout-log-date');
+    const today = await dateInput.inputValue();
+    await expect(dateInput).toHaveAttribute('max', today);
+  });
+
   test('前回の記録が次回の初期値になる（サーバが解決する）', async ({ page }) => {
     await page.getByTestId('set-weight-0-1').fill('37');
     await page.getByTestId('set-check-0-1').click();

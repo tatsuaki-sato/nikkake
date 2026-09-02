@@ -319,6 +319,8 @@ type Mutation {
   updateRoutine(input: UpdateRoutineInput!): RoutinePayload!
   deleteRoutine(input: IdInput!): RoutinePayload!
   setRoutineActive(input: SetRoutineActiveInput!): RoutinePayload!
+  "ホームでの並び順を入れ替える。渡した順番がそのままsort_orderになる"
+  reorderRoutines(routineIds: [ID!]!): ReorderRoutinesPayload!
   createCustomExercise(input: CreateCustomExerciseInput!): ExercisePayload!
 
   # ---- 記録（オフラインキューの対象） ----
@@ -551,6 +553,11 @@ type AuthPayload {
 
 type RoutinePayload {
   routine: Routine
+  userErrors: [UserError!]!
+}
+
+type ReorderRoutinesPayload {
+  routines: [Routine!]
   userErrors: [UserError!]!
 }
 

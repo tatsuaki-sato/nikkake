@@ -196,6 +196,15 @@ export class NikkakeApi {
     return { data: data.setRoutineActive.routine, userErrors: data.setRoutineActive.userErrors };
   }
 
+  async reorderRoutines(ids: string[]): Promise<MutationResult<{ id: string; sortOrder: number }[]>> {
+    await this.ensureSession();
+    const data = await this.client.request<{
+      reorderRoutines: { routines: { id: string; sortOrder: number }[] | null; userErrors: UserError[] };
+    }>(ops.REORDER_ROUTINES, { ids });
+
+    return { data: data.reorderRoutines.routines, userErrors: data.reorderRoutines.userErrors };
+  }
+
   async createCustomExercise(input: {
     name: string; category: Exercise['category']; icon?: string | null;
   }): Promise<MutationResult<Exercise>> {

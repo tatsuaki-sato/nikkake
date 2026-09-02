@@ -156,6 +156,15 @@ export const SET_ROUTINE_ACTIVE = `
   }
 `;
 
+export const REORDER_ROUTINES = `
+  mutation ReorderRoutines($ids: [ID!]!) {
+    reorderRoutines(routineIds: $ids) {
+      routines { id sortOrder }
+      userErrors { message code }
+    }
+  }
+`;
+
 export const CREATE_CUSTOM_EXERCISE = `
   mutation CreateCustomExercise($id: ID!, $name: String!, $category: ExerciseCategory!, $icon: String) {
     createCustomExercise(id: $id, name: $name, category: $category, icon: $icon) {

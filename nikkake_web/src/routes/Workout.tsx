@@ -47,6 +47,9 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
   const [running, setRunning] = useState(false);
   const [rest, setRest] = useState(0);
   const [saving, setSaving] = useState(false);
+  // 過去の日付の実績も登録できるように。既定は今日（日付はサーバではなく端末が決める）
+  const today = getDateString();
+  const [logDate, setLogDate] = useState(today);
   const startedAt = useRef(new Date().toISOString());
   const initialised = useRef(false);
 
@@ -134,7 +137,7 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
 
     const recorded = await api.recordWorkout({
       routineId,
-      logDate: getDateString(),
+      logDate,
       startedAt: startedAt.current,
       durationSec: elapsed,
       totalSets: totals.total,
@@ -148,6 +151,16 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
 
   return (
     <div data-testid="workout-screen">
+      <div className="row" style={{ marginBottom: 'var(--sp-2)' }}>
+        {/* 何日の実績として記録するか。既定は今日。過去の日付を選べば後から実績を登録できる */}
+        <input type="date" className="set-input" style={{ width: 'auto' }} value={logDate} max={today}
+               onChange={e => setLogDate(e.target.value)} data-testid="workout-log-date" />
+        <div style={{ flex: 1 }} />
+        <button className="btn" style={{ width: 'auto' }} onClick={finish} disabled={saving} data-testid="workout-finish">
+          完了
+        </button>
+      </div>
+
       <div className="row" style={{ marginBottom: 'var(--sp-3)' }}>
         <button className="btn btn--ghost" style={{ width: 'auto' }}
                 onClick={() => setRunning(v => !v)} data-testid="workout-timer-toggle">
@@ -156,10 +169,6 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
         <div className="muted" data-testid="workout-elapsed" style={{ marginLeft: 'var(--sp-2)' }}>
           {formatDuration(elapsed)}
         </div>
-        <div style={{ flex: 1 }} />
-        <button className="btn" style={{ width: 'auto' }} onClick={finish} disabled={saving} data-testid="workout-finish">
-          完了
-        </button>
       </div>
 
       {result && (

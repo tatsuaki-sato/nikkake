@@ -14,6 +14,7 @@ module Types
     field :update_routine,          mutation: Mutations::UpdateRoutine
     field :delete_routine,          mutation: Mutations::DeleteRoutine
     field :set_routine_active,      mutation: Mutations::SetRoutineActive
+    field :reorder_routines,        mutation: Mutations::ReorderRoutines
     field :create_custom_exercise,  mutation: Mutations::CreateCustomExercise
 
     field :record_workout,     mutation: Mutations::RecordWorkout

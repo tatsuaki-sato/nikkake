@@ -292,6 +292,48 @@ RSpec.describe "GraphQL API", type: :request do
     end
   end
 
+  describe "ルーティンの並び替え" do
+    REORDER_ROUTINES = <<~GQL
+      mutation($ids: [ID!]!) {
+        reorderRoutines(routineIds: $ids) {
+          routines { id sortOrder }
+          userErrors { message code }
+        }
+      }
+    GQL
+
+    def a_routine(name:)
+      { id: SecureRandom.uuid, name: name, icon: "💪", color: "#6C5CE7",
+        frequency_type: "daily", frequency_value: 1, frequency_days: [],
+        exercises: [ { id: SecureRandom.uuid, exercise_id: PUSH_UP_ID, target_sets: 3, target_reps: 10 } ] }
+    end
+
+    it "渡した順にsortOrderが振り直される" do
+      token, user = signed_up
+      writer = RoutineWriter.new(user: user)
+      a = writer.create(a_routine(name: "A"))
+      b = writer.create(a_routine(name: "B"))
+
+      payload = post_graphql(REORDER_ROUTINES, variables: { ids: [ b.id, a.id ] }, token: token)
+                .dig("data", "reorderRoutines")
+
+      expect(payload["userErrors"]).to be_empty
+      expect(a.reload.sort_order).to eq(1)
+      expect(b.reload.sort_order).to eq(0)
+    end
+
+    it "他人のルーティンidが混ざっていると弾く" do
+      token, = signed_up
+      other_user = AccountCreator.call(time_zone: "Asia/Tokyo").user
+      other_routine = RoutineWriter.new(user: other_user).create(a_routine(name: "他人の"))
+
+      error = post_graphql(REORDER_ROUTINES, variables: { ids: [ other_routine.id ] }, token: token)
+              .dig("data", "reorderRoutines", "userErrors").first
+
+      expect(error["code"]).to eq("NOT_FOUND")
+    end
+  end
+
   SESSION_QUERY = <<~GQL
       query($rid: ID!) {
         workoutSession(routineId: $rid) {
