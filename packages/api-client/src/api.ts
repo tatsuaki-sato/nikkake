@@ -3,7 +3,7 @@ import { OfflineQueue, type QueuedOp } from './queue';
 import type { KeyValueStore } from './storage';
 import * as ops from './operations';
 import type {
-  Exercise, ExerciseProgressPoint, HomeView, ProgressView, RecordedSetInput,
+  DayView, Exercise, ExerciseProgressPoint, HomeView, ProgressView, RecordedSetInput,
   Routine, RoutineExerciseInput, UserError, Viewer, WorkoutSession, WorkoutSummary, Streak,
 } from './types';
 import { currentTimeZone, getDateString, uuid } from '@nikkake/domain';
@@ -143,6 +143,14 @@ export class NikkakeApi {
       ops.EXERCISE_PROGRESS, { exerciseId, limit },
     );
     return data.exerciseProgress;
+  }
+
+  async day(date = getDateString()): Promise<DayView> {
+    await this.ensureSession();
+    const data = await this.client.request<{ day: DayView }>(ops.DAY, {
+      date, timeZone: currentTimeZone(),
+    });
+    return data.day;
   }
 
   async viewer(): Promise<Viewer> {

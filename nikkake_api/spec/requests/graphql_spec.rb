@@ -433,4 +433,57 @@ RSpec.describe "GraphQL API", type: :request do
       expect(progress["exercisesWithLogs"].map { _1["name"] }).to eq([ "腕立て伏せ" ])
     end
   end
+
+  describe "日別のワークアウト内容" do
+    DAY_QUERY = <<~GQL
+      query($date: Date!) {
+        day(date: $date, timeZone: "Asia/Tokyo") {
+          date
+          workouts {
+            routineLogId routineName status durationSec
+            exercises { exerciseName setsLabel }
+          }
+        }
+      }
+    GQL
+
+    it "記録が無い日は空を返す" do
+      token, = signed_up
+
+      day = post_graphql(DAY_QUERY, variables: { date: "2026-08-05" }, token: token).dig("data", "day")
+
+      expect(day["date"]).to eq("2026-08-05")
+      expect(day["workouts"]).to be_empty
+    end
+
+    it "その日に記録したルーティンと、種目ごとの整形済みセットを返す" do
+      token, user = signed_up
+      routine = user.routines.kept.first
+      vars = { id: SecureRandom.uuid, rid: routine.id, date: "2026-08-05",
+               sets: [ a_set(number: 1, reps: 10, weight: 50.0),
+                       a_set(number: 2, reps: 8, weight: 50.0) ], total: 2 }
+      post_graphql(RECORD_WORKOUT, variables: vars, token: token)
+
+      day = post_graphql(DAY_QUERY, variables: { date: "2026-08-05" }, token: token).dig("data", "day")
+
+      expect(day["workouts"].size).to eq(1)
+      workout = day["workouts"].first
+      expect(workout["routineName"]).to eq(routine.name)
+      expect(workout["status"]).to eq("COMPLETED")
+      expect(workout["exercises"]).to eq(
+        [ { "exerciseName" => "腕立て伏せ", "setsLabel" => "50×10 / 50×8" } ]
+      )
+    end
+
+    it "他の日の記録は含めない" do
+      token, user = signed_up
+      vars = { id: SecureRandom.uuid, rid: user.routines.kept.first.id,
+               date: "2026-08-04", sets: [ a_set ], total: 1 }
+      post_graphql(RECORD_WORKOUT, variables: vars, token: token)
+
+      day = post_graphql(DAY_QUERY, variables: { date: "2026-08-05" }, token: token).dig("data", "day")
+
+      expect(day["workouts"]).to be_empty
+    end
+  end
 end

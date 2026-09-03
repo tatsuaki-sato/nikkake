@@ -149,8 +149,15 @@ input { font-family: inherit; }
 .bar-chart__bar--on { background: var(--success); }
 .bar-chart__label { font-size: 9px; color: var(--text-secondary); margin-top: var(--sp-1); }
 
+.calendar__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-2); }
+.calendar__title { font-weight: bold; white-space: nowrap; }
+.calendar__nav { width: 44px; min-height: 36px; flex: 0 0 auto; background: transparent; border: 0;
+  color: var(--primary-light); font-size: 15px; cursor: pointer; border-radius: var(--r-sm); }
+.calendar__nav:disabled { opacity: 0.3; cursor: default; }
 .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .calendar__cell { aspect-ratio: 1; display: grid; place-items: center; font-size: 12px;
-  color: var(--text-secondary); border-radius: var(--r-sm); }
+  color: var(--text-secondary); border-radius: var(--r-sm);
+  background: transparent; border: 0; padding: 0; font: inherit; cursor: pointer; }
 .calendar__cell--done { background: var(--success); color: var(--bg); font-weight: bold; }
 .calendar__cell--today { outline: 1px solid var(--primary-light); }
+.calendar__cell--selected { outline: 2px solid var(--primary); outline-offset: -2px; }

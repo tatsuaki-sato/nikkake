@@ -50,6 +50,9 @@ type Query {
   "種目ごとの推移。進捗画面で種目を切り替えたときに使う"
   exerciseProgress(exerciseId: ID!, limit: Int! = 8): [ExerciseProgressPoint!]!
 
+  "指定日のワークアウト内容。進捗カレンダーで日をタップしたときに使う"
+  day(date: Date!, timeZone: String!): DayView!
+
   viewer: Viewer!
 
   """
@@ -152,6 +155,27 @@ type ExerciseProgressPoint {
   totalReps: Int!
   "kg × 回 の合計。自重種目は 0"
   totalVolume: Float!
+}
+
+type DayView {
+  date: Date!
+  "その日に記録したワークアウト。記録が無ければ空"
+  workouts: [DayWorkout!]!
+}
+
+type DayWorkout {
+  routineLogId: ID!
+  "実施時点のルーティン名。ルーティンを消してもここには残る"
+  routineName: String!
+  status: LogStatus!
+  durationSec: Int
+  exercises: [DayExerciseSummary!]!
+}
+
+type DayExerciseSummary {
+  exerciseName: String!
+  "「50.0×10 / 50.0×8」形式の整形済み文字列。セット記録が無ければ null。文言はサーバが返す"
+  setsLabel: String
 }
 
 type Viewer {

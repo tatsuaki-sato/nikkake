@@ -12,6 +12,7 @@ export const Progress = () => {
   const today = getDateString();
   const [range, setRange] = useState(7);
   const [exerciseId, setExerciseId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['progress', today, range],
@@ -73,7 +74,11 @@ export const Progress = () => {
       </Card>
 
       <h2 className="section-title">カレンダー</h2>
-      <Card testId="progress-calendar"><MonthGrid doneDates={done} /></Card>
+      <Card testId="progress-calendar">
+        <MonthGrid doneDates={done} selected={selectedDate}
+                   onSelect={d => setSelectedDate(d === selectedDate ? null : d)} />
+      </Card>
+      {selectedDate && <DayDetail date={selectedDate} onClose={() => setSelectedDate(null)} />}
 
       <h2 className="section-title">種目ごとの推移</h2>
       {data.exercisesWithLogs.length === 0 ? (
@@ -114,34 +119,88 @@ const Stat = ({ label, value, testId }: { label: string; value: string; testId: 
   </div>
 );
 
-/** 当月のカレンダー。実施した日を塗る */
-const MonthGrid = ({ doneDates }: { doneDates: Set<string> }) => {
+/** カレンダー。実施した日を塗り、日をタップするとその日の内容を開く。◀▶ で前月・翌月へ */
+const MonthGrid = ({ doneDates, selected, onSelect }: {
+  doneDates: Set<string>;
+  selected: string | null;
+  onSelect: (date: string) => void;
+}) => {
   const today = new Date();
-  const first = new Date(today.getFullYear(), today.getMonth(), 1);
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const [monthsBack, setMonthsBack] = useState(0);
+
+  const view = new Date(today.getFullYear(), today.getMonth() - monthsBack, 1);
+  const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
   const todayString = getDateString(today);
 
   const cells: (string | null)[] = [
-    ...Array<null>(first.getDay()).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => getDateString(addDays(first, i))),
+    ...Array<null>(view.getDay()).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => getDateString(addDays(view, i))),
   ];
 
   return (
     <>
-      <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: 'var(--sp-2)' }}>
-        {today.getFullYear()}年{today.getMonth() + 1}月
+      <div className="calendar__head">
+        <button className="calendar__nav" data-testid="calendar-prev"
+                onClick={() => setMonthsBack(m => m + 1)} aria-label="前の月">◀</button>
+        <div className="calendar__title">{view.getFullYear()}年{view.getMonth() + 1}月</div>
+        <button className="calendar__nav" data-testid="calendar-next" disabled={monthsBack === 0}
+                onClick={() => setMonthsBack(m => Math.max(0, m - 1))} aria-label="次の月">▶</button>
       </div>
       <div className="calendar">
         {['日', '月', '火', '水', '木', '金', '土'].map(d => (
           <div key={d} className="muted" style={{ textAlign: 'center', fontSize: 11 }}>{d}</div>
         ))}
-        {cells.map((date, i) => (
-          <div key={date ?? `blank-${i}`}
-               className={`calendar__cell${date && doneDates.has(date) ? ' calendar__cell--done' : ''}${date === todayString ? ' calendar__cell--today' : ''}`}>
-            {date ? Number(date.slice(8)) : ''}
-          </div>
-        ))}
+        {cells.map((date, i) => {
+          if (!date) return <div key={`blank-${i}`} className="calendar__cell" />;
+          const done = doneDates.has(date);
+          const cls = `calendar__cell${done ? ' calendar__cell--done' : ''}`
+            + `${date === todayString ? ' calendar__cell--today' : ''}`
+            + `${date === selected ? ' calendar__cell--selected' : ''}`;
+          return (
+            <button key={date} className={cls} onClick={() => onSelect(date)}
+                    data-testid={`calendar-day-${date}`}>
+              {Number(date.slice(8))}
+            </button>
+          );
+        })}
       </div>
     </>
+  );
+};
+
+/** カレンダーで選んだ日のワークアウト内容。集計と同じくサーバが整形して返す */
+const DayDetail = ({ date, onClose }: { date: string; onClose: () => void }) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ['day', date],
+    queryFn: () => api.day(date),
+  });
+
+  return (
+    <Card testId="progress-day-detail">
+      <div className="calendar__head">
+        <span style={{ fontWeight: 'bold' }}>{date.slice(5).replace('-', '/')} の記録</span>
+        <button className="calendar__nav" onClick={onClose} aria-label="閉じる">✕</button>
+      </div>
+      {isLoading ? (
+        <div className="muted">読み込み中…</div>
+      ) : !data || data.workouts.length === 0 ? (
+        <div className="muted">この日の記録はありません。</div>
+      ) : (
+        data.workouts.map(w => (
+          <div key={w.routineLogId} style={{ padding: 'var(--sp-2) 0', borderTop: '1px solid var(--border)' }}>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span style={{ fontWeight: 'bold' }}>{w.routineName}</span>
+              {w.durationSec != null && <span className="muted">{formatDuration(w.durationSec)}</span>}
+            </div>
+            {w.exercises.map((e, i) => (
+              <div key={i} className="row" style={{ justifyContent: 'space-between', fontSize: 13 }}>
+                <span className="muted">{e.exerciseName}</span>
+                <span>{e.setsLabel ?? '—'}</span>
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </Card>
   );
 };

@@ -115,6 +115,25 @@ export interface ExerciseProgressPoint {
   totalVolume: number;
 }
 
+export interface DayExerciseSummary {
+  exerciseName: string;
+  /** 「50.0×10 / 50.0×8」形式の整形済み文字列。文言はサーバが返す */
+  setsLabel: string | null;
+}
+
+export interface DayWorkout {
+  routineLogId: string;
+  routineName: string;
+  status: LogStatus;
+  durationSec: number | null;
+  exercises: DayExerciseSummary[];
+}
+
+export interface DayView {
+  date: string;
+  workouts: DayWorkout[];
+}
+
 export interface DataCounts {
   routines: number;
   exercises: number;

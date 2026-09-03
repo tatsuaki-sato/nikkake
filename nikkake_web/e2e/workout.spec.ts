@@ -150,6 +150,8 @@ test.describe('ワークアウト', () => {
     await expect(page.getByTestId('progress-empty')).toBeVisible();
 
     await openTab(page, 'ホーム');
+    const today = await page.getByTestId('workout-log-date').inputValue();
+    await page.getByTestId('set-weight-0-1').fill('40');
     await page.getByTestId('set-check-0-1').click();
     await page.getByTestId('workout-finish').click();
 
@@ -158,6 +160,32 @@ test.describe('ワークアウト', () => {
     await expect(page.getByTestId('progress-streak')).toHaveText('1日');
     await expect(page.getByTestId('progress-chart')).toBeVisible();
     await expect(page.getByTestId('progress-calendar')).toBeVisible();
+
+    // カレンダーの日をタップすると、その日のワークアウト内容が開く
+    await page.getByTestId(`calendar-day-${today}`).click();
+    const detail = page.getByTestId('progress-day-detail');
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText('いつものルーティン');
+    await expect(detail).toContainText('腕立て伏せ');
+    await expect(detail).toContainText('40×10');
+  });
+
+  test('カレンダーは前月へめくれる', async ({ page }) => {
+    await openTab(page, 'ホーム');
+    await page.getByTestId('set-check-0-1').click();
+    await page.getByTestId('workout-finish').click();
+
+    await openTab(page, '進捗');
+    const now = new Date();
+    const label = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月`;
+
+    await expect(page.getByTestId('progress-calendar')).toContainText(label(now));
+    await expect(page.getByTestId('calendar-next')).toBeDisabled();
+
+    await page.getByTestId('calendar-prev').click();
+    const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    await expect(page.getByTestId('progress-calendar')).toContainText(label(prevMonth));
+    await expect(page.getByTestId('calendar-next')).toBeEnabled();
   });
 });
 

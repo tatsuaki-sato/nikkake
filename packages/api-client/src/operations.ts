@@ -71,6 +71,18 @@ export const EXERCISE_PROGRESS = `
   }
 `;
 
+export const DAY = `
+  query Day($date: Date!, $timeZone: String!) {
+    day(date: $date, timeZone: $timeZone) {
+      date
+      workouts {
+        routineLogId routineName status durationSec
+        exercises { exerciseName setsLabel }
+      }
+    }
+  }
+`;
+
 export const VIEWER = `
   query Viewer {
     viewer {

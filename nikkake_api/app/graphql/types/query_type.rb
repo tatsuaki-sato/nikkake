@@ -39,6 +39,11 @@ module Types
       argument :limit, Integer, required: false, default_value: 8
     end
 
+    field :day, DayViewType, null: false do
+      argument :date, DateType
+      argument :time_zone, String
+    end
+
     field :viewer, ViewerType, null: false
 
     field :changes, ChangeSetType, null: false do
@@ -79,6 +84,10 @@ module Types
         routine_logs: current_user.routine_logs.kept.to_a,
         exercise_logs: current_user.exercise_logs.kept.to_a
       ).last(limit)
+    end
+
+    def day(date:, time_zone:)
+      DayViewBuilder.new(user: current_user, date: date).call
     end
 
     def viewer = current_user
