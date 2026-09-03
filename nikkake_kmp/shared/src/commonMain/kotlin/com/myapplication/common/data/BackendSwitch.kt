@@ -108,6 +108,8 @@ class BackendSwitch(
     override suspend fun getExerciseProgressPoints(exerciseId: String, limit: Int): List<ExerciseProgressPoint> =
         current.getExerciseProgressPoints(exerciseId, limit)
 
+    override suspend fun getDay(date: String): DayView = current.getDay(date)
+
     override suspend fun getWorkoutSession(routineId: String): WorkoutSessionView? =
         current.getWorkoutSession(routineId)
 

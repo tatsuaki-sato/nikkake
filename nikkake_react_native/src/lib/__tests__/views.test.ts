@@ -2,6 +2,7 @@ import { resetDatabase } from '../localDb';
 import { seedIfNeeded } from '../seed';
 import {
   createRoutine,
+  getDay,
   getExerciseProgressPoints,
   getHome,
   getProgress,
@@ -165,6 +166,39 @@ describe('進捗', () => {
 
   it('rangeDays ぶんの日次データを返す', async () => {
     expect((await getProgress(30)).dailyStats).toHaveLength(30);
+  });
+
+  it('指定日のワークアウト内容を、サーバと同じ整形済み文字列で返す', async () => {
+    const routine = await buildRoutine();
+    const link = (await getWorkoutSession(routine.id))!.exercises[0];
+
+    await saveWorkout({
+      routineId: routine.id,
+      startedAt: new Date().toISOString(),
+      durationSec: 600,
+      exercises: [
+        {
+          routineExerciseId: link.routineExerciseId,
+          exerciseId: link.exercise.id,
+          sets: [
+            { setNumber: 1, reps: 10, weight: 50, durationSec: null, completed: true },
+            { setNumber: 2, reps: 8, weight: 50, durationSec: null, completed: true },
+          ],
+        },
+      ],
+    });
+
+    const today = getDateString();
+    const day = await getDay(today);
+
+    expect(day.date).toBe(today);
+    expect(day.workouts).toHaveLength(1);
+    expect(day.workouts[0]).toMatchObject({ routineName: '筋トレ', status: 'COMPLETED', durationSec: 600 });
+    expect(day.workouts[0].exercises).toEqual([
+      { exerciseName: link.exercise.name, setsLabel: '50×10 / 50×8' },
+    ]);
+
+    expect((await getDay('2000-01-01')).workouts).toHaveLength(0);
   });
 });
 

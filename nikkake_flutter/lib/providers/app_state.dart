@@ -67,6 +67,8 @@ class AppState extends ChangeNotifier {
   Future<List<ExerciseProgressPoint>> exerciseProgress(String exerciseId) =>
       repository.getExerciseProgressPoints(exerciseId);
 
+  Future<DayView> day(String date) => repository.getDay(date);
+
   RoutineWithExercises? findRoutine(String id) {
     for (final r in _routines) {
       if (r.id == id) return r;

@@ -55,6 +55,9 @@ class AppStoreTest {
             limit: Int,
         ): List<ExerciseProgressPoint> = emptyList()
 
+        override suspend fun getDay(date: String): com.myapplication.common.data.DayView =
+            com.myapplication.common.data.DayView(date = date)
+
         override suspend fun getWorkoutSession(routineId: String): WorkoutSessionView? = null
 
         override suspend fun listExercises(): List<Exercise> = emptyList()

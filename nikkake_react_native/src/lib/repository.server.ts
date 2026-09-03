@@ -19,6 +19,7 @@ import type { DataCounts, RoutineInput } from './repository.local';
 import type {
   ApiExercise,
   ApiRoutine,
+  DayView,
   ExerciseProgressPoint,
   HomeView,
   ProgressView,
@@ -131,6 +132,9 @@ export const getExerciseProgressPoints = (
   exerciseId: string,
   limit = 8
 ): Promise<ExerciseProgressPoint[]> => api.exerciseProgress(exerciseId, limit);
+
+export const getDay = (date: string | Date = new Date()): Promise<DayView> =>
+  api.day(typeof date === 'string' ? date : getDateString(date));
 
 export const getWorkoutSession = async (routineId: string): Promise<WorkoutSession | null> => {
   const session = await api.workoutSession(routineId);

@@ -182,6 +182,35 @@ class RepositoryTest {
     }
 
     @Test
+    fun 指定日のワークアウト内容をサーバと同じ整形済み文字列で返す() = runTest {
+        val repository = repo()
+        val routine = repository.createRoutine(sampleRoutineInput())
+        val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
+
+        saveOneWorkout(
+            repository, routine.id, link.link.id, link.exercise.id,
+            listOf(
+                WorkoutSet(1, reps = 10, weight = 50.0, completed = true),
+                WorkoutSet(2, reps = 8, weight = 50.0, completed = true),
+            ),
+        )
+
+        val today = getDateString()
+        val day = repository.getDay(today)
+
+        assertEquals(today, day.date)
+        assertEquals(1, day.workouts.size)
+        assertEquals(routine.name, day.workouts.first().routineName)
+        assertEquals(LogStatus.COMPLETED, day.workouts.first().status)
+        assertEquals(
+            listOf(link.exercise.name to "50×10 / 50×8"),
+            day.workouts.first().exercises.map { it.exerciseName to it.setsLabel },
+        )
+
+        assertTrue(repository.getDay("2000-01-01").workouts.isEmpty())
+    }
+
+    @Test
     fun 全セット完了ならcompletedになり今日の一覧でも完了扱いになる() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())

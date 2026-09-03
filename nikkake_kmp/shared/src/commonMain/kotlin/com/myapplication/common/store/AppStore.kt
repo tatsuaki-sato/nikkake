@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.myapplication.common.data.DataCounts
+import com.myapplication.common.data.DayView
 import com.myapplication.common.data.Exercise
 import com.myapplication.common.data.ExerciseProgressPoint
 import com.myapplication.common.data.HomeView
@@ -78,6 +79,8 @@ class AppStore(
 
     suspend fun exerciseProgress(exerciseId: String): List<ExerciseProgressPoint> =
         repository.getExerciseProgressPoints(exerciseId)
+
+    suspend fun day(date: String): DayView = repository.getDay(date)
 
     fun findRoutine(id: String): RoutineWithExercises? = routines.firstOrNull { it.id == id }
 

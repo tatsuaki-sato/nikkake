@@ -24,6 +24,10 @@ abstract interface class NikkakeRepository {
   Future<HomeView> getHome([DateTime? now]);
   Future<ProgressView> getProgress({int rangeDays = 7, DateTime? now});
   Future<List<ExerciseProgressPoint>> getExerciseProgressPoints(String exerciseId, {int limit = 8});
+
+  /// 指定日のワークアウト内容。進捗カレンダーで日をタップしたとき
+  Future<DayView> getDay(String date);
+
   Future<WorkoutSessionView?> getWorkoutSession(String routineId);
 
   // ---------- 参照 ----------
@@ -170,6 +174,42 @@ class ProgressView {
     ),
     streak: StreakInfo(current: 0, longest: 0),
   );
+}
+
+/// 進捗カレンダーで日をタップしたときの、その日のワークアウト内容。
+/// 対応するサーバ側は DayViewBuilder。
+class DayView {
+  final String date;
+  final List<DayWorkout> workouts;
+
+  const DayView({required this.date, this.workouts = const []});
+
+  static const empty = DayView(date: '');
+}
+
+class DayWorkout {
+  final String routineLogId;
+  final String routineName;
+  final LogStatus status;
+  final int? durationSec;
+  final List<DayExerciseSummary> exercises;
+
+  const DayWorkout({
+    required this.routineLogId,
+    required this.routineName,
+    required this.status,
+    this.durationSec,
+    this.exercises = const [],
+  });
+}
+
+class DayExerciseSummary {
+  final String exerciseName;
+
+  /// 「50×10 / 50×8」。文言はサーバが決める。セット記録が無ければ null
+  final String? setsLabel;
+
+  const DayExerciseSummary({required this.exerciseName, this.setsLabel});
 }
 
 /// ワークアウト実行に必要なもの一式。「前回の記録」も解決済み

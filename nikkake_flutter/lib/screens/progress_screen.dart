@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/colors.dart';
+import '../data/nikkake_repository.dart';
 import '../domain/date_utils.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
@@ -19,6 +20,7 @@ class ProgressScreen extends StatefulWidget {
 class _ProgressScreenState extends State<ProgressScreen> {
   int _range = 7;
   String? _selectedExerciseId;
+  String? _selectedDate;
 
   /// 種目別の推移はサーバへの別クエリなので、取れたぶんだけ持っておく
   final Map<String, List<ExerciseProgressPoint>> _pointsByExercise = {};
@@ -158,7 +160,24 @@ class _ProgressScreenState extends State<ProgressScreen> {
         const SizedBox(height: Spacing.lg),
 
         const SectionTitle('カレンダー'),
-        AppCard(key: const Key('progress-calendar'), child: _MonthGrid(doneDates: doneDates)),
+        AppCard(
+          key: const Key('progress-calendar'),
+          child: _MonthGrid(
+            doneDates: doneDates,
+            selectedDate: _selectedDate,
+            onSelectDate: (date) => setState(
+              () => _selectedDate = _selectedDate == date ? null : date,
+            ),
+          ),
+        ),
+        if (_selectedDate != null) ...[
+          const SizedBox(height: Spacing.md),
+          _DayDetail(
+            key: ValueKey(_selectedDate),
+            date: _selectedDate!,
+            onClose: () => setState(() => _selectedDate = null),
+          ),
+        ],
         const SizedBox(height: Spacing.lg),
 
         const SectionTitle('種目ごとの推移'),
@@ -248,31 +267,66 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 }
 
-/// 当月のカレンダー。実施した日を塗る
-class _MonthGrid extends StatelessWidget {
+/// カレンダー。実施した日を塗る。◀▶ で前月・翌月へ移動でき、日をタップするとその日の内容を開く
+class _MonthGrid extends StatefulWidget {
   final Set<String> doneDates;
+  final String? selectedDate;
+  final ValueChanged<String> onSelectDate;
 
-  const _MonthGrid({required this.doneDates});
+  const _MonthGrid({
+    required this.doneDates,
+    required this.selectedDate,
+    required this.onSelectDate,
+  });
+
+  @override
+  State<_MonthGrid> createState() => _MonthGridState();
+}
+
+class _MonthGridState extends State<_MonthGrid> {
+  int _monthsBack = 0;
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
-    final firstOfMonth = DateTime(today.year, today.month, 1);
-    final daysInMonth = DateTime(today.year, today.month + 1, 0).day;
+    final now = DateTime.now();
+    final view = DateTime(now.year, now.month - _monthsBack, 1);
+    final daysInMonth = DateTime(view.year, view.month + 1, 0).day;
     // Dartの weekday は 月=1..日=7。カレンダーは日曜始まりなので変換する
-    final leadingBlanks = firstOfMonth.weekday % 7;
-    final todayString = getDateString(today);
+    final leadingBlanks = view.weekday % 7;
+    final todayString = getDateString(now);
 
     final cells = <String?>[
       ...List<String?>.filled(leadingBlanks, null),
-      ...List.generate(daysInMonth, (i) => getDateString(addDays(firstOfMonth, i))),
+      ...List.generate(daysInMonth, (i) => getDateString(addDays(view, i))),
     ];
 
     return Column(
       children: [
-        Text(
-          '${today.year}年${today.month}月',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              key: const Key('calendar-prev'),
+              onPressed: () => setState(() => _monthsBack++),
+              icon: const Icon(Icons.chevron_left, size: 20),
+              color: AppColors.darkPrimaryLight,
+              tooltip: '前の月',
+              visualDensity: VisualDensity.compact,
+            ),
+            Text(
+              '${view.year}年${view.month}月',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
+            ),
+            IconButton(
+              key: const Key('calendar-next'),
+              onPressed:
+                  _monthsBack == 0 ? null : () => setState(() => _monthsBack--),
+              icon: const Icon(Icons.chevron_right, size: 20),
+              color: AppColors.darkPrimaryLight,
+              tooltip: '次の月',
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
         ),
         const SizedBox(height: Spacing.sm),
         Row(
@@ -292,29 +346,160 @@ class _MonthGrid extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: cells.map((date) {
-            final done = date != null && doneDates.contains(date);
+            if (date == null) return const SizedBox.shrink();
+            final done = widget.doneDates.contains(date);
             final isToday = date == todayString;
+            final isSelected = date == widget.selectedDate;
 
-            return Container(
-              margin: const EdgeInsets.all(2),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: done ? AppColors.darkSuccess : null,
-                borderRadius: BorderRadius.circular(Radii.sm),
-                border: isToday ? Border.all(color: AppColors.darkPrimaryLight) : null,
-              ),
-              child: Text(
-                date == null ? '' : int.parse(date.substring(8)).toString(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: done ? AppColors.darkBackground : AppColors.darkTextSecondary,
-                  fontWeight: done ? FontWeight.bold : FontWeight.normal,
+            return GestureDetector(
+              key: Key('calendar-day-$date'),
+              onTap: () => widget.onSelectDate(date),
+              child: Container(
+                margin: const EdgeInsets.all(2),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: done ? AppColors.darkSuccess : null,
+                  borderRadius: BorderRadius.circular(Radii.sm),
+                  border: isSelected
+                      ? Border.all(color: AppColors.darkPrimary, width: 2)
+                      : isToday
+                          ? Border.all(color: AppColors.darkPrimaryLight)
+                          : null,
+                ),
+                child: Text(
+                  int.parse(date.substring(8)).toString(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: done ? AppColors.darkBackground : AppColors.darkTextSecondary,
+                    fontWeight: done ? FontWeight.bold : FontWeight.normal,
+                  ),
                 ),
               ),
             );
           }).toList(),
         ),
       ],
+    );
+  }
+}
+
+/// カレンダーで選んだ日のワークアウト内容。集計と同じくサーバが整形して返す
+class _DayDetail extends StatefulWidget {
+  final String date;
+  final VoidCallback onClose;
+
+  const _DayDetail({super.key, required this.date, required this.onClose});
+
+  @override
+  State<_DayDetail> createState() => _DayDetailState();
+}
+
+class _DayDetailState extends State<_DayDetail> {
+  late final Future<DayView> _future =
+      context.read<AppState>().day(widget.date);
+
+  @override
+  Widget build(BuildContext context) {
+    final date = widget.date;
+    final onClose = widget.onClose;
+
+    return AppCard(
+      key: const Key('progress-day-detail'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${date.substring(5).replaceFirst('-', '/')} の記録',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.darkTextPrimary,
+                  fontSize: 14,
+                ),
+              ),
+              GestureDetector(
+                onTap: onClose,
+                child: const Icon(Icons.close, size: 18, color: AppColors.darkTextSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.sm),
+          FutureBuilder<DayView>(
+            future: _future,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Text('読み込み中…',
+                    style: TextStyle(color: AppColors.darkTextSecondary, fontSize: 13));
+              }
+              final workouts = snapshot.data!.workouts;
+              if (workouts.isEmpty) {
+                return const Text('この日の記録はありません。',
+                    style: TextStyle(color: AppColors.darkTextSecondary, fontSize: 13));
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final workout in workouts)
+                    Padding(
+                      padding: const EdgeInsets.only(top: Spacing.sm),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                workout.routineName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.darkTextPrimary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              if (workout.durationSec != null)
+                                Text(
+                                  formatDuration(workout.durationSec!),
+                                  style: const TextStyle(
+                                    color: AppColors.darkTextSecondary,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          for (final exercise in workout.exercises)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    exercise.exerciseName,
+                                    style: const TextStyle(
+                                      color: AppColors.darkTextSecondary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  Text(
+                                    exercise.setsLabel ?? '—',
+                                    style: const TextStyle(
+                                      color: AppColors.darkTextPrimary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }

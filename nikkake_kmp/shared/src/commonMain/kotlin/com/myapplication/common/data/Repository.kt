@@ -535,6 +535,46 @@ class Repository(val db: LocalDb) : NikkakeRepository {
     ): List<ExerciseProgressPoint> =
         calculateExerciseProgress(exerciseId, listRoutineLogs(), listExerciseLogs()).takeLast(limit)
 
+    override suspend fun getDay(date: String): DayView {
+        val exerciseLogs = listExerciseLogs()
+        val routineName = listRoutinesLocal().associate { it.id to it.name }
+        val exerciseName = listExercisesLocal().associate { it.id to it.name }
+
+        val workouts = listRoutineLogs()
+            .filter { it.logDate == date }
+            .sortedBy { it.createdAt }
+            .map { log ->
+                val byExercise = exerciseLogs
+                    .filter { it.routineLogId == log.id }
+                    .sortedBy { it.setNumber }
+                    .groupBy { it.exerciseId }
+
+                DayWorkout(
+                    routineLogId = log.id,
+                    routineName = routineName[log.routineId] ?: "",
+                    status = log.status,
+                    durationSec = log.durationSec,
+                    exercises = byExercise.map { (exerciseId, sets) ->
+                        DayExerciseSummary(
+                            exerciseName = exerciseName[exerciseId] ?: "",
+                            // 文言はサーバに寄せる。「前回: …」と同じ整形を使う
+                            setsLabel = if (sets.isEmpty()) null else formatPreviousSets(
+                                sets.map {
+                                    PreviousSetLike(
+                                        reps = it.actualReps,
+                                        weight = it.actualWeight,
+                                        durationSec = it.actualDurationSec,
+                                    )
+                                },
+                            ),
+                        )
+                    },
+                )
+            }
+
+        return DayView(date = date, workouts = workouts)
+    }
+
     override suspend fun getWorkoutSession(routineId: String): WorkoutSessionView? {
         val routine = getRoutineWithExercisesLocal(routineId) ?: return null
         val previous = getLastSetsByExercise(routineId)

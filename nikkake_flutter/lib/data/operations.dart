@@ -94,6 +94,18 @@ const exerciseProgress = '''
   }
 ''';
 
+const day = '''
+  query Day(\$date: Date!, \$timeZone: String!) {
+    day(date: \$date, timeZone: \$timeZone) {
+      date
+      workouts {
+        routineLogId routineName status durationSec
+        exercises { exerciseName setsLabel }
+      }
+    }
+  }
+''';
+
 const viewer = '''
   query Viewer {
     viewer { id email displayName isAnonymous emailVerified storageMode

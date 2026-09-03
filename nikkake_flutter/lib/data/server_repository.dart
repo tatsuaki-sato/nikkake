@@ -272,6 +272,36 @@ class ServerRepository implements NikkakeRepository {
   }
 
   @override
+  Future<DayView> getDay(String date) async {
+    final data = await _client.request(ops.day, {
+      'date': date,
+      'timeZone': DeviceTimeZone.name,
+    });
+
+    final view = data['day'] as Map<String, dynamic>;
+
+    return DayView(
+      date: view['date'] as String,
+      workouts: ((view['workouts'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map((w) => DayWorkout(
+                routineLogId: w['routineLogId'] as String,
+                routineName: w['routineName'] as String,
+                status: logStatusFrom((w['status'] as String).toLowerCase()),
+                durationSec: (w['durationSec'] as num?)?.toInt(),
+                exercises: ((w['exercises'] as List?) ?? const [])
+                    .cast<Map<String, dynamic>>()
+                    .map((e) => DayExerciseSummary(
+                          exerciseName: e['exerciseName'] as String,
+                          setsLabel: e['setsLabel'] as String?,
+                        ))
+                    .toList(),
+              ))
+          .toList(),
+    );
+  }
+
+  @override
   Future<WorkoutSessionView?> getWorkoutSession(String routineId) async {
     final data = await _client.request(ops.workoutSession, {'routineId': routineId});
     final session = data['workoutSession'] as Map<String, dynamic>?;

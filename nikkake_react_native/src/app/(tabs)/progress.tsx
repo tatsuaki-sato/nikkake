@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { getExerciseProgressPoints, getProgress } from '../../lib/repository';
+import { getDay, getExerciseProgressPoints, getProgress } from '../../lib/repository';
 import { addDays, formatDuration, getDateString } from '../../lib/utils';
 import { Card, EmptyState, SectionTitle, Spacing, Radius } from '../../components/ui';
 
@@ -18,6 +18,7 @@ import { Card, EmptyState, SectionTitle, Spacing, Radius } from '../../component
 export default function ProgressScreen() {
   const [range, setRange] = useState<7 | 30>(7);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const progressQuery = useQuery({
     queryKey: ['progress', range],
@@ -125,8 +126,15 @@ export default function ProgressScreen() {
 
       <SectionTitle style={styles.sectionSpacing}>カレンダー</SectionTitle>
       <Card testID="progress-calendar">
-        <MonthGrid doneDates={doneDates} />
+        <MonthGrid
+          doneDates={doneDates}
+          selectedDate={selectedDate}
+          onSelectDate={date => setSelectedDate(date === selectedDate ? null : date)}
+        />
       </Card>
+      {selectedDate ? (
+        <DayDetail date={selectedDate} onClose={() => setSelectedDate(null)} />
+      ) : null}
 
       <SectionTitle style={styles.sectionSpacing}>種目ごとの推移</SectionTitle>
       {loggedExercises.length === 0 ? (
@@ -176,22 +184,49 @@ export default function ProgressScreen() {
   );
 }
 
-/** 当月のカレンダー。実施した日を塗る */
-const MonthGrid: React.FC<{ doneDates: Set<string> }> = ({ doneDates }) => {
-  const today = new Date();
-  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const leadingBlanks = firstOfMonth.getDay();
-  const todayString = getDateString(today);
+/** カレンダー。実施した日を塗る。◀▶ で前月・翌月へ移動でき、日をタップするとその日の内容を開く */
+const MonthGrid: React.FC<{
+  doneDates: Set<string>;
+  selectedDate: string | null;
+  onSelectDate: (date: string) => void;
+}> = ({ doneDates, selectedDate, onSelectDate }) => {
+  const [monthsBack, setMonthsBack] = useState(0);
+  const now = new Date();
+  const view = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
+  const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const todayString = getDateString(now);
 
   const cells: (string | null)[] = [
-    ...Array<null>(leadingBlanks).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => getDateString(addDays(firstOfMonth, i))),
+    ...Array<null>(view.getDay()).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => getDateString(addDays(view, i))),
   ];
 
   return (
     <View>
-      <Text style={styles.monthLabel}>{today.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}</Text>
+      <View style={styles.monthHeader}>
+        <TouchableOpacity
+          onPress={() => setMonthsBack(m => m + 1)}
+          accessibilityRole="button"
+          accessibilityLabel="前の月"
+          testID="calendar-prev"
+          style={styles.monthNav}
+        >
+          <Text style={styles.monthNavText}>◀</Text>
+        </TouchableOpacity>
+        <Text style={styles.monthLabel}>
+          {view.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setMonthsBack(m => Math.max(0, m - 1))}
+          disabled={monthsBack === 0}
+          accessibilityRole="button"
+          accessibilityLabel="次の月"
+          testID="calendar-next"
+          style={styles.monthNav}
+        >
+          <Text style={[styles.monthNavText, monthsBack === 0 && styles.monthNavDisabled]}>▶</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.weekHeader}>
         {['日', '月', '火', '水', '木', '金', '土'].map(d => (
           <Text key={d} style={styles.weekHeaderText}>
@@ -200,22 +235,73 @@ const MonthGrid: React.FC<{ doneDates: Set<string> }> = ({ doneDates }) => {
         ))}
       </View>
       <View style={styles.calendarGrid}>
-        {cells.map((date, index) => (
-          <View
-            key={date ?? `blank-${index}`}
-            style={[
-              styles.calendarCell,
-              date && doneDates.has(date) && styles.calendarCellDone,
-              date === todayString && styles.calendarCellToday,
-            ]}
-          >
-            <Text style={[styles.calendarText, date && doneDates.has(date) && styles.calendarTextDone]}>
-              {date ? Number(date.slice(8)) : ''}
-            </Text>
-          </View>
-        ))}
+        {cells.map((date, index) => {
+          if (!date) return <View key={`blank-${index}`} style={styles.calendarCell} />;
+          const done = doneDates.has(date);
+          return (
+            <TouchableOpacity
+              key={date}
+              onPress={() => onSelectDate(date)}
+              accessibilityRole="button"
+              testID={`calendar-day-${date}`}
+              style={[
+                styles.calendarCell,
+                done && styles.calendarCellDone,
+                date === todayString && styles.calendarCellToday,
+                date === selectedDate && styles.calendarCellSelected,
+              ]}
+            >
+              <Text style={[styles.calendarText, done && styles.calendarTextDone]}>
+                {Number(date.slice(8))}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
+  );
+};
+
+/** カレンダーで選んだ日のワークアウト内容。集計と同じくサーバが整形して返す */
+const DayDetail: React.FC<{ date: string; onClose: () => void }> = ({ date, onClose }) => {
+  const dayQuery = useQuery({
+    queryKey: ['day', date],
+    queryFn: () => getDay(date),
+  });
+
+  const workouts = dayQuery.data?.workouts ?? [];
+
+  return (
+    <Card style={styles.sectionSpacing} testID="progress-day-detail">
+      <View style={styles.dayHeader}>
+        <Text style={styles.dayTitle}>{date.slice(5).replace('-', '/')} の記録</Text>
+        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="閉じる">
+          <Text style={styles.monthNavText}>✕</Text>
+        </TouchableOpacity>
+      </View>
+      {dayQuery.isLoading ? (
+        <Text style={styles.muted}>読み込み中…</Text>
+      ) : workouts.length === 0 ? (
+        <Text style={styles.muted}>この日の記録はありません。</Text>
+      ) : (
+        workouts.map(workout => (
+          <View key={workout.routineLogId} style={styles.dayWorkout}>
+            <View style={styles.dayWorkoutHead}>
+              <Text style={styles.dayRoutineName}>{workout.routineName}</Text>
+              {workout.durationSec != null ? (
+                <Text style={styles.muted}>{formatDuration(workout.durationSec)}</Text>
+              ) : null}
+            </View>
+            {workout.exercises.map((exercise, i) => (
+              <View key={i} style={styles.dayExerciseRow}>
+                <Text style={styles.muted}>{exercise.exerciseName}</Text>
+                <Text style={styles.dayExerciseSets}>{exercise.setsLabel ?? '—'}</Text>
+              </View>
+            ))}
+          </View>
+        ))
+      )}
+    </Card>
   );
 };
 
@@ -257,7 +343,16 @@ const styles = StyleSheet.create({
   chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   chartBar: { width: '80%', borderRadius: 2 },
   chartLabel: { color: C.textSecondary, fontSize: 9, marginTop: Spacing.xs },
-  monthLabel: { color: C.textPrimary, fontWeight: 'bold', marginBottom: Spacing.sm, textAlign: 'center' },
+  monthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  monthLabel: { color: C.textPrimary, fontWeight: 'bold', textAlign: 'center' },
+  monthNav: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
+  monthNavText: { color: C.primaryLight, fontSize: 15 },
+  monthNavDisabled: { opacity: 0.3 },
   weekHeader: { flexDirection: 'row' },
   weekHeaderText: { flex: 1, textAlign: 'center', color: C.textSecondary, fontSize: 11, marginBottom: Spacing.xs },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
@@ -270,8 +365,21 @@ const styles = StyleSheet.create({
   },
   calendarCellDone: { backgroundColor: C.success, borderRadius: Radius.sm },
   calendarCellToday: { borderWidth: 1, borderColor: C.primaryLight, borderRadius: Radius.sm },
+  calendarCellSelected: { borderWidth: 2, borderColor: C.primary, borderRadius: Radius.sm },
   calendarText: { color: C.textSecondary, fontSize: 12 },
   calendarTextDone: { color: '#0F0F14', fontWeight: 'bold' },
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  dayTitle: { color: C.textPrimary, fontWeight: 'bold', fontSize: 14 },
+  dayWorkout: { borderTopWidth: 1, borderTopColor: C.border, paddingVertical: Spacing.sm },
+  dayWorkoutHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.xs },
+  dayRoutineName: { color: C.textPrimary, fontWeight: 'bold', fontSize: 14 },
+  dayExerciseRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+  dayExerciseSets: { color: C.textPrimary, fontSize: 13 },
   chipRow: { gap: Spacing.sm, paddingVertical: Spacing.sm },
   chip: {
     paddingHorizontal: Spacing.md,

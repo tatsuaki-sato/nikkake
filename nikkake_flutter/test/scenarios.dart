@@ -377,6 +377,71 @@ void registerScenarios() {
       expect(textOf(tester, 'progress-week'), '1回');
       expect(textOf(tester, 'progress-streak'), '1日');
     });
+
+    testWidgets('カレンダーの日をタップするとその日のワークアウト内容が出る', (tester) async {
+      await pumpApp(tester);
+
+      await tester.tap(find.text('いつものルーティン'));
+      await tester.pumpAndSettle();
+      await completeVisibleSets(tester, 0, 3);
+      await tester.tap(find.byKey(const Key('workout-finish')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('summary-home')));
+      await tester.pumpAndSettle();
+
+      await openTab(tester, '進捗');
+
+      final now = DateTime.now();
+      final iso = '${now.year.toString().padLeft(4, '0')}-'
+          '${now.month.toString().padLeft(2, '0')}-'
+          '${now.day.toString().padLeft(2, '0')}';
+
+      await tester.ensureVisible(find.byKey(Key('calendar-day-$iso')));
+      await tester.tap(find.byKey(Key('calendar-day-$iso')));
+      await tester.pumpAndSettle();
+
+      final detail = find.byKey(const Key('progress-day-detail'));
+      expect(detail, findsOneWidget);
+      expect(
+        find.descendant(of: detail, matching: find.text('いつものルーティン')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: detail, matching: find.text('腕立て伏せ')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('カレンダーは前月へめくれる', (tester) async {
+      await pumpApp(tester);
+
+      await tester.tap(find.text('いつものルーティン'));
+      await tester.pumpAndSettle();
+      await completeVisibleSets(tester, 0, 3);
+      await tester.tap(find.byKey(const Key('workout-finish')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('summary-home')));
+      await tester.pumpAndSettle();
+
+      await openTab(tester, '進捗');
+
+      final now = DateTime.now();
+      final calendar = find.byKey(const Key('progress-calendar'));
+      expect(
+        find.descendant(of: calendar, matching: find.text('${now.year}年${now.month}月')),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(find.byKey(const Key('calendar-prev')));
+      await tester.tap(find.byKey(const Key('calendar-prev')));
+      await tester.pumpAndSettle();
+
+      final prev = DateTime(now.year, now.month - 1, 1);
+      expect(
+        find.descendant(of: calendar, matching: find.text('${prev.year}年${prev.month}月')),
+        findsOneWidget,
+      );
+    });
   });
 
   group('設定とデータの保存先', () {

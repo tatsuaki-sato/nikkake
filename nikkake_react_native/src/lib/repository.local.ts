@@ -21,6 +21,8 @@ import {
   completedDateSet,
 } from './stats';
 import type {
+  DayView,
+  DayWorkout,
   ExerciseProgressPoint,
   HomeView,
   ProgressView,
@@ -558,6 +560,59 @@ export const getExerciseProgressPoints = async (
 ): Promise<ExerciseProgressPoint[]> => {
   const [routineLogs, exerciseLogs] = await Promise.all([listRoutineLogs(), listExerciseLogs()]);
   return calculateExerciseProgress(exerciseId, routineLogs, exerciseLogs).slice(-limit);
+};
+
+/**
+ * 指定日のワークアウト内容。進捗カレンダーで日をタップしたとき。
+ * サーバの DayViewBuilder と同じ形・同じ整形（formatPreviousSets）で返す。
+ */
+export const getDay = async (date: string | Date = new Date()): Promise<DayView> => {
+  const dateString = typeof date === 'string' ? date : getDateString(date);
+  const [routineLogs, exerciseLogs, routines, exercises] = await Promise.all([
+    listRoutineLogs(),
+    listExerciseLogs(),
+    listRoutinesWithExercises(),
+    listExercises(),
+  ]);
+
+  const routineName = new Map(routines.map(r => [r.id, r.name]));
+  const exerciseName = new Map(exercises.map(e => [e.id, e.name]));
+
+  const workouts = routineLogs
+    .filter(log => log.log_date === dateString)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map(log => {
+      const byExercise = new Map<string, ExerciseLog[]>();
+      for (const set of exerciseLogs
+        .filter(s => s.routine_log_id === log.id)
+        .sort((a, b) => a.set_number - b.set_number)) {
+        const bucket = byExercise.get(set.exercise_id) ?? [];
+        bucket.push(set);
+        byExercise.set(set.exercise_id, bucket);
+      }
+
+      return {
+        routineLogId: log.id,
+        routineName: routineName.get(log.routine_id) ?? '',
+        status: upper<DayWorkout['status']>(log.status),
+        durationSec: log.duration_sec,
+        exercises: [...byExercise.entries()].map(([exerciseId, sets]) => ({
+          exerciseName: exerciseName.get(exerciseId) ?? '',
+          setsLabel:
+            sets.length === 0
+              ? null
+              : formatPreviousSets(
+                  sets.map(s => ({
+                    reps: s.actual_reps,
+                    weight: s.actual_weight,
+                    durationSec: s.actual_duration_sec,
+                  }))
+                ),
+        })),
+      };
+    });
+
+  return { date: dateString, workouts };
 };
 
 export const getWorkoutSession = async (routineId: string): Promise<WorkoutSession | null> => {

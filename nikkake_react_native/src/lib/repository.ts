@@ -23,6 +23,7 @@ interface Repository {
   getStreak: typeof localImpl.getStreak;
   getProgress: typeof localImpl.getProgress;
   getExerciseProgressPoints: typeof localImpl.getExerciseProgressPoints;
+  getDay: typeof localImpl.getDay;
   getWorkoutSession: typeof localImpl.getWorkoutSession;
 
   listExercises: typeof localImpl.listExercises;
@@ -58,6 +59,7 @@ export const getStreak: Repository['getStreak'] = (...args) => impl().getStreak(
 export const getProgress: Repository['getProgress'] = (...args) => impl().getProgress(...args);
 export const getExerciseProgressPoints: Repository['getExerciseProgressPoints'] = (...args) =>
   impl().getExerciseProgressPoints(...args);
+export const getDay: Repository['getDay'] = (...args) => impl().getDay(...args);
 export const getWorkoutSession: Repository['getWorkoutSession'] = (...args) =>
   impl().getWorkoutSession(...args);
 

@@ -60,6 +60,37 @@ test.describe('進捗', () => {
     await expect(detail).toContainText('47kg');
   });
 
+  test('カレンダーの日をタップするとその日のワークアウト内容が出る', async ({ page }) => {
+    await recordOneWorkout(page, '48');
+    await openTab(page, '進捗');
+
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    await page.getByTestId(`calendar-day-${iso}`).click();
+    const detail = page.getByTestId('progress-day-detail');
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText('いつものルーティン');
+    await expect(detail).toContainText('腕立て伏せ');
+    await expect(detail).toContainText('48×10');
+  });
+
+  test('カレンダーは前月へめくれる', async ({ page }) => {
+    await recordOneWorkout(page);
+    await openTab(page, '進捗');
+
+    const now = new Date();
+    const label = (d: Date) => d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' });
+    const calendar = page.getByTestId('progress-calendar');
+
+    await expect(calendar).toContainText(label(now));
+    await expect(page.getByTestId('calendar-next')).toBeDisabled();
+
+    await page.getByTestId('calendar-prev').click();
+    await expect(calendar).toContainText(label(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
+    await expect(page.getByTestId('calendar-next')).toBeEnabled();
+  });
+
   test('記録した種目だけが選択肢に出る', async ({ page }) => {
     await recordOneWorkout(page);
     await openTab(page, '進捗');

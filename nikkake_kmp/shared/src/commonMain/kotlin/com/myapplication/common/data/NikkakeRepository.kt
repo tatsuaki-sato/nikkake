@@ -29,6 +29,10 @@ interface NikkakeRepository {
     suspend fun getHome(todayDate: LocalDate? = null): HomeView
     suspend fun getProgress(rangeDays: Int = 7, todayDate: LocalDate? = null): ProgressView
     suspend fun getExerciseProgressPoints(exerciseId: String, limit: Int = 8): List<ExerciseProgressPoint>
+
+    /** 指定日のワークアウト内容。進捗カレンダーで日をタップしたとき */
+    suspend fun getDay(date: String): DayView
+
     suspend fun getWorkoutSession(routineId: String): WorkoutSessionView?
 
     // ---------- 参照 ----------
@@ -86,6 +90,29 @@ data class ProgressView(
     val dailyStats: List<DailyStats> = emptyList(),
     val completedDates: Set<String> = emptySet(),
     val exercisesWithLogs: List<Exercise> = emptyList(),
+)
+
+/**
+ * 進捗カレンダーで日をタップしたときの、その日のワークアウト内容。
+ * 対応するサーバ側は DayViewBuilder。
+ */
+data class DayView(
+    val date: String = "",
+    val workouts: List<DayWorkout> = emptyList(),
+)
+
+data class DayWorkout(
+    val routineLogId: String,
+    val routineName: String,
+    val status: String,
+    val durationSec: Int? = null,
+    val exercises: List<DayExerciseSummary> = emptyList(),
+)
+
+data class DayExerciseSummary(
+    val exerciseName: String,
+    /** 「50×10 / 50×8」。文言はサーバが決める。セット記録が無ければ null */
+    val setsLabel: String? = null,
 )
 
 /** ワークアウト実行に必要なもの一式。「前回の記録」も解決済み */

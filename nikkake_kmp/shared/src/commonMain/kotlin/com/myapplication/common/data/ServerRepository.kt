@@ -284,6 +284,38 @@ class ServerRepository(
         }
     }
 
+    override suspend fun getDay(date: String): DayView {
+        val data = client.request(
+            Operations.DAY,
+            buildJsonObject {
+                put("date", date)
+                put("timeZone", client.timeZoneName())
+            },
+        )
+
+        val view = data["day"]!!.jsonObject
+
+        return DayView(
+            date = view["date"].str() ?: date,
+            workouts = (view["workouts"]?.jsonArray ?: JsonArray(emptyList())).map {
+                val w = it.jsonObject
+                DayWorkout(
+                    routineLogId = w["routineLogId"].str()!!,
+                    routineName = w["routineName"].str() ?: "",
+                    status = (w["status"].str() ?: LogStatus.SKIPPED).lowercase(),
+                    durationSec = w["durationSec"].int(),
+                    exercises = (w["exercises"]?.jsonArray ?: JsonArray(emptyList())).map { e ->
+                        val ex = e.jsonObject
+                        DayExerciseSummary(
+                            exerciseName = ex["exerciseName"].str() ?: "",
+                            setsLabel = ex["setsLabel"].str(),
+                        )
+                    },
+                )
+            },
+        )
+    }
+
     override suspend fun getWorkoutSession(routineId: String): WorkoutSessionView? {
         val data = client.request(Operations.WORKOUT_SESSION, buildJsonObject { put("routineId", routineId) })
         val session = data["workoutSession"]?.jsonObject ?: return null

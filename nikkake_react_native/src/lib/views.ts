@@ -8,6 +8,9 @@
  */
 export type {
   DailyStat,
+  DayView,
+  DayWorkout,
+  DayExerciseSummary,
   Exercise as ApiExercise,
   ExerciseProgressPoint,
   HomeView,

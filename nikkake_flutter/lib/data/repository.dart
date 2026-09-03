@@ -490,6 +490,48 @@ class Repository implements NikkakeRepository {
   }
 
   @override
+  Future<DayView> getDay(String date) async {
+    final exerciseLogs = listExerciseLogs();
+    final routineName = {for (final r in listRoutines()) r.id: r.name};
+    final exerciseName = {for (final e in _listExercises()) e.id: e.name};
+
+    final workouts = (listRoutineLogs().where((l) => l.logDate == date).toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt)))
+        .map((log) {
+      final byExercise = <String, List<ExerciseLog>>{};
+      final sets = exerciseLogs.where((s) => s.routineLogId == log.id).toList()
+        ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+      for (final s in sets) {
+        byExercise.putIfAbsent(s.exerciseId, () => []).add(s);
+      }
+
+      return DayWorkout(
+        routineLogId: log.id,
+        routineName: routineName[log.routineId] ?? '',
+        status: log.status,
+        durationSec: log.durationSec,
+        exercises: byExercise.entries
+            .map((entry) => DayExerciseSummary(
+                  exerciseName: exerciseName[entry.key] ?? '',
+                  // 文言はサーバに寄せる。「前回: …」と同じ整形を使う
+                  setsLabel: entry.value.isEmpty
+                      ? null
+                      : formatPreviousSets(entry.value
+                          .map((s) => PreviousSetLike(
+                                reps: s.actualReps,
+                                weight: s.actualWeight,
+                                durationSec: s.actualDurationSec,
+                              ))
+                          .toList()),
+                ))
+            .toList(),
+      );
+    }).toList();
+
+    return DayView(date: date, workouts: workouts);
+  }
+
+  @override
   Future<WorkoutSessionView?> getWorkoutSession(String routineId) async {
     final routine = _getRoutineWithExercises(routineId);
     if (routine == null) return null;

@@ -119,6 +119,9 @@ class BackendSwitch implements NikkakeRepository {
       current.getExerciseProgressPoints(exerciseId, limit: limit);
 
   @override
+  Future<DayView> getDay(String date) => current.getDay(date);
+
+  @override
   Future<WorkoutSessionView?> getWorkoutSession(String routineId) =>
       current.getWorkoutSession(routineId);
 
