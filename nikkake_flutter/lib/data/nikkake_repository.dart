@@ -49,6 +49,9 @@ abstract interface class NikkakeRepository {
   Future<void> setRoutineActive(String routineId, bool isActive);
   Future<void> deleteRoutine(String routineId);
 
+  /// 渡された順番がそのまま並び順になる（並べ替えの対象外のルーティンは触らない）
+  Future<void> reorderRoutines(List<String> ids);
+
   // ---------- 記録 ----------
 
   /// status は受け取らない。完了セット数から実装側が必ず導出する。

@@ -35,6 +35,7 @@ interface Repository {
   updateRoutine: typeof localImpl.updateRoutine;
   setRoutineActive: typeof localImpl.setRoutineActive;
   deleteRoutine: typeof localImpl.deleteRoutine;
+  reorderRoutines: typeof localImpl.reorderRoutines;
 
   saveWorkout: typeof localImpl.saveWorkout;
 
@@ -76,6 +77,7 @@ export const updateRoutine: Repository['updateRoutine'] = (...args) => impl().up
 export const setRoutineActive: Repository['setRoutineActive'] = (...args) =>
   impl().setRoutineActive(...args);
 export const deleteRoutine: Repository['deleteRoutine'] = (...args) => impl().deleteRoutine(...args);
+export const reorderRoutines: Repository['reorderRoutines'] = (...args) => impl().reorderRoutines(...args);
 
 export const saveWorkout: Repository['saveWorkout'] = (...args) => impl().saveWorkout(...args);
 

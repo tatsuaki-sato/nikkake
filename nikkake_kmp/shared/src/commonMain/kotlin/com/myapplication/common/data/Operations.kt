@@ -177,6 +177,15 @@ internal object Operations {
         }
     """
 
+    const val REORDER_ROUTINES = """
+        mutation ReorderRoutines(${'$'}ids: [ID!]!) {
+          reorderRoutines(routineIds: ${'$'}ids) {
+            routines { id sortOrder }
+            userErrors { message code }
+          }
+        }
+    """
+
     const val CREATE_CUSTOM_EXERCISE = """
         mutation CreateCustomExercise(${'$'}id: ID!, ${'$'}name: String!, ${'$'}category: ExerciseCategory!, ${'$'}icon: String) {
           createCustomExercise(id: ${'$'}id, name: ${'$'}name, category: ${'$'}category, icon: ${'$'}icon) {

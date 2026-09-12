@@ -120,6 +120,14 @@ input { font-family: inherit; }
 .section-title { font-size: 18px; font-weight: bold; margin: var(--sp-4) 0 var(--sp-3); }
 .h1 { font-size: 28px; font-weight: bold; margin: 0; }
 
+.home-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }
+.home-header__streak { gap: var(--sp-1); flex-wrap: wrap; justify-content: flex-end; white-space: nowrap; }
+
+.drag-handle { flex: 0 0 auto; width: 40px; min-height: 40px; padding: 0;
+  background: transparent; border: none; color: var(--text-secondary); font-size: 20px;
+  touch-action: none; cursor: grab; }
+.drag-handle:active { cursor: grabbing; color: var(--text-primary); }
+
 .empty { text-align: center; padding: var(--sp-5); }
 .empty__icon { font-size: 56px; }
 .empty__title { font-size: 18px; font-weight: bold; margin: var(--sp-3) 0 var(--sp-2); }

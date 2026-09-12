@@ -96,6 +96,11 @@ class AppState extends ChangeNotifier {
     await refresh();
   }
 
+  Future<void> reorderRoutines(List<String> ids) async {
+    await repository.reorderRoutines(ids);
+    await refresh();
+  }
+
   Future<void> resetAll() async {
     await repository.resetAll();
     await refresh();

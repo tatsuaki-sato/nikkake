@@ -256,6 +256,13 @@ class Repository implements NikkakeRepository {
   }
 
   @override
+  Future<void> reorderRoutines(List<String> ids) async {
+    for (var i = 0; i < ids.length; i++) {
+      await db.update(Collections.routines, ids[i], {'sort_order': i});
+    }
+  }
+
+  @override
   Future<void> deleteRoutine(String routineId) async {
     await db.softDeleteWhere(
       Collections.routineExercises,

@@ -11,6 +11,8 @@ import 'workout_screen.dart';
 /// ホーム。アプリを開いた直後に見る画面。
 /// サインインの有無に関係なく、ここに「今日やるルーティン」が並んでいて
 /// 1タップで開始できる状態にしておくことがこの画面の唯一の役目。
+///
+/// 挨拶・日付・連続記録は1行にまとめている。縦幅を食う要素を増やさないため。
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -32,10 +34,8 @@ class HomeScreen extends StatelessWidget {
         key: const Key('home-screen'),
         padding: const EdgeInsets.all(Spacing.md),
         children: [
-          _Header(),
-          const SizedBox(height: Spacing.lg),
-          _StreakBanner(streak: streak),
-          const SizedBox(height: Spacing.xl),
+          _Header(streak: streak),
+          const SizedBox(height: Spacing.md),
           const Text(
             '今日のルーティン',
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
@@ -63,16 +63,35 @@ class HomeScreen extends StatelessWidget {
               message: 'おつかれさま。この調子で続けましょう。',
             ),
 
-          for (final item in due) _RoutineCard(item: item, state: _CardState.due),
+          if (due.isNotEmpty)
+            _ReorderableRoutineSection(
+              items: due,
+              state: _CardState.due,
+              due: due,
+              later: later,
+              done: done,
+            ),
 
           if (later.isNotEmpty) ...[
             const _SubTitle('今日は予定なし'),
-            for (final item in later) _RoutineCard(item: item, state: _CardState.later),
+            _ReorderableRoutineSection(
+              items: later,
+              state: _CardState.later,
+              due: due,
+              later: later,
+              done: done,
+            ),
           ],
 
           if (done.isNotEmpty) ...[
             const _SubTitle('完了'),
-            for (final item in done) _RoutineCard(item: item, state: _CardState.done),
+            _ReorderableRoutineSection(
+              items: done,
+              state: _CardState.done,
+              due: due,
+              later: later,
+              done: done,
+            ),
           ],
         ],
       ),
@@ -81,75 +100,53 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
+  final StreakInfo streak;
+
+  const _Header({required this.streak});
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
 
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          greetingForHour(now.hour),
-          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
-        ),
-        const SizedBox(height: Spacing.xs),
-        Text(
-          '${now.month}月${now.day}日 (${weekdays[now.weekday - 1]})',
-          style: const TextStyle(fontSize: 14, color: AppColors.darkTextSecondary),
-        ),
-      ],
-    );
-  }
-}
-
-class _StreakBanner extends StatelessWidget {
-  final StreakInfo streak;
-
-  const _StreakBanner({required this.streak});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      key: const Key('streak-banner'),
-      color: AppColors.darkSurfaceElevated,
-      child: Row(
-        children: [
-          Text(streak.current > 0 ? '🔥' : '🌱', style: const TextStyle(fontSize: 32)),
-          const SizedBox(width: Spacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('連続記録', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
-                Text(
-                  '${streak.current} 日',
-                  key: const Key('streak-count'),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.darkAccent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('最長', style: TextStyle(fontSize: 12, color: AppColors.darkTextSecondary)),
               Text(
-                '${streak.longest} 日',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.darkTextPrimary,
-                ),
+                greetingForHour(now.hour),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.darkTextPrimary),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${now.month}月${now.day}日 (${weekdays[now.weekday - 1]})',
+                style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+        Row(
+          key: const Key('streak-banner'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(streak.current > 0 ? '🔥' : '🌱', style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: Spacing.xs),
+            Text(
+              '${streak.current} 日',
+              key: const Key('streak-count'),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkAccent),
+            ),
+            const SizedBox(width: Spacing.xs),
+            Text(
+              '(最長${streak.longest}日)',
+              style: const TextStyle(fontSize: 12, color: AppColors.darkTextSecondary),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -173,11 +170,66 @@ class _SubTitle extends StatelessWidget {
 
 enum _CardState { due, later, done }
 
+/// 区分（今日やる／予定なし／完了）の中だけでドラッグ並び替えができるリスト。
+/// 区分をまたいだ移動はさせない。「今日やる」か「完了」かはサーバが決めるもので、
+/// ドラッグで変えるものではないため。
+///
+/// ReorderableListViewはモバイルでは長押しで、Web/デスクトップでは自動で
+/// 付与されるハンドルアイコンでドラッグを始められる（buildDefaultDragHandles既定値）。
+class _ReorderableRoutineSection extends StatelessWidget {
+  final List<TodayRoutine> items;
+  final _CardState state;
+  final List<TodayRoutine> due;
+  final List<TodayRoutine> later;
+  final List<TodayRoutine> done;
+
+  const _ReorderableRoutineSection({
+    required this.items,
+    required this.state,
+    required this.due,
+    required this.later,
+    required this.done,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ReorderableListView(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      onReorder: (oldIndex, newIndex) {
+        final reordered = [...items];
+        if (newIndex > oldIndex) newIndex -= 1;
+        final moved = reordered.removeAt(oldIndex);
+        reordered.insert(newIndex, moved);
+
+        List<String> idsOf(List<TodayRoutine> list) =>
+            list.map((item) => item.routine.routine.id).toList();
+
+        final ids = [
+          ...idsOf(state == _CardState.due ? reordered : due),
+          ...idsOf(state == _CardState.later ? reordered : later),
+          ...idsOf(state == _CardState.done ? reordered : done),
+        ];
+
+        context.read<AppState>().reorderRoutines(ids);
+      },
+      children: [
+        for (final item in items)
+          _RoutineCard(
+            key: Key('routine-card-${item.routine.routine.id}'),
+            item: item,
+            state: state,
+          ),
+      ],
+    );
+  }
+}
+
 class _RoutineCard extends StatelessWidget {
   final TodayRoutine item;
   final _CardState state;
 
-  const _RoutineCard({required this.item, required this.state});
+  const _RoutineCard({super.key, required this.item, required this.state});
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +240,6 @@ class _RoutineCard extends StatelessWidget {
       child: Opacity(
         opacity: state == _CardState.due ? 1 : 0.55,
         child: InkWell(
-          key: Key('routine-card-${routine.id}'),
           borderRadius: BorderRadius.circular(Radii.lg),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => WorkoutScreen(routineId: routine.id)),

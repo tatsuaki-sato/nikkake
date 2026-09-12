@@ -7,6 +7,7 @@ import {
   insert,
   insertMany,
   update,
+  updateMany,
   softDelete,
   softDeleteWhere,
 } from './localDb';
@@ -205,6 +206,14 @@ export const updateRoutine = async (
 
 export const setRoutineActive = (routineId: string, isActive: boolean) =>
   update<Routine>(COLLECTIONS.routines, routineId, { is_active: isActive });
+
+/** 渡された順番がそのまま sort_order になる（並べ替えの対象外のルーティンは触らない） */
+export const reorderRoutines = async (ids: string[]): Promise<void> => {
+  await updateMany<Routine>(
+    COLLECTIONS.routines,
+    ids.map((id, index) => ({ id, patch: { sort_order: index } }))
+  );
+};
 
 /**
  * ルーティン内の種目構成を丸ごと差し替える。

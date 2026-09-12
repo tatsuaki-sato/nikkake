@@ -179,6 +179,15 @@ const setRoutineActive = '''
   }
 ''';
 
+const reorderRoutines = '''
+  mutation ReorderRoutines(\$ids: [ID!]!) {
+    reorderRoutines(routineIds: \$ids) {
+      routines { id sortOrder }
+      userErrors { message code }
+    }
+  }
+''';
+
 const createCustomExercise = '''
   mutation CreateCustomExercise(\$id: ID!, \$name: String!, \$category: ExerciseCategory!, \$icon: String) {
     createCustomExercise(id: \$id, name: \$name, category: \$category, icon: \$icon) {

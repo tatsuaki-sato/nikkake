@@ -125,6 +125,27 @@ export const update = async <T extends Row>(
 };
 
 /**
+ * 複数件をまとめて更新する。
+ * update()をPromise.allで並列に呼ぶと、それぞれが更新前のコレクションを
+ * 読んでから書き戻すため、後勝ちで他の更新が消える。1回の読み書きにまとめて防ぐ。
+ */
+export const updateMany = async <T extends Row>(
+  collection: CollectionName,
+  patches: { id: string; patch: Partial<T> }[]
+): Promise<void> => {
+  const rows = await readCollection<T>(collection);
+  const patchById = new Map(patches.map(p => [p.id, p.patch]));
+  const timestamp = nowIso();
+
+  const next = rows.map(row => {
+    const patch = patchById.get(row.id);
+    return patch ? ({ ...row, ...patch, updated_at: timestamp } as T) : row;
+  });
+
+  await writeCollection(collection, next);
+};
+
+/**
  * 論理削除。物理削除にすると「削除した」という事実が同期先に伝わらず、
  * 他端末からpullし直すたびに復活してしまう。
  */

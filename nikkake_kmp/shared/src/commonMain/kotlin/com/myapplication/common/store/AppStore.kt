@@ -115,6 +115,14 @@ class AppStore(
         }
     }
 
+    /** 渡された順番がそのまま並び順になる（並べ替えの対象外のルーティンは触らない） */
+    fun reorderRoutines(ids: List<String>) {
+        scope.launch {
+            repository.reorderRoutines(ids)
+            reload()
+        }
+    }
+
     suspend fun resetAll() {
         repository.resetAll()
         reload()

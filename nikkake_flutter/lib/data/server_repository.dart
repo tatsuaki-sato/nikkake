@@ -451,6 +451,18 @@ class ServerRepository implements NikkakeRepository {
   }
 
   @override
+  Future<void> reorderRoutines(List<String> ids) async {
+    final data = await _client.request(ops.reorderRoutines, {'ids': ids});
+    final payload = data['reorderRoutines'] as Map<String, dynamic>;
+    final errors = (payload['userErrors'] as List?) ?? const [];
+    if (errors.isNotEmpty) {
+      throw PermanentFailure(
+        (errors.first as Map<String, dynamic>)['message'] as String? ?? '保存できませんでした',
+      );
+    }
+  }
+
+  @override
   Future<Exercise> createCustomExercise({
     required String name,
     required ExerciseCategory category,

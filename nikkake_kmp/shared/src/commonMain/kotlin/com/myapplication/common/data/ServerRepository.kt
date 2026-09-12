@@ -447,6 +447,21 @@ class ServerRepository(
         lockVersions.remove(routineId)
     }
 
+    override suspend fun reorderRoutines(ids: List<String>) {
+        val data = client.request(
+            Operations.REORDER_ROUTINES,
+            buildJsonObject {
+                putJsonArray("ids") { ids.forEach { add(it) } }
+            },
+        )
+        val payload = data["reorderRoutines"]!!.jsonObject
+        payload["userErrors"]?.jsonArray?.firstOrNull()?.let { first ->
+            throw PermanentFailure(
+                first.jsonObject["message"]?.jsonPrimitive?.content ?: "保存できませんでした"
+            )
+        }
+    }
+
     override suspend fun createCustomExercise(name: String, category: String, icon: String?): Exercise {
         val data = client.request(
             Operations.CREATE_CUSTOM_EXERCISE,

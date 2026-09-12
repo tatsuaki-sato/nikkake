@@ -159,6 +159,9 @@ class BackendSwitch implements NikkakeRepository {
   Future<void> deleteRoutine(String routineId) => current.deleteRoutine(routineId);
 
   @override
+  Future<void> reorderRoutines(List<String> ids) => current.reorderRoutines(ids);
+
+  @override
   Future<WorkoutSummary> saveWorkout({
     required String routineId,
     required DateTime startedAt,

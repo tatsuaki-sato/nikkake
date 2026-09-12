@@ -86,6 +86,8 @@ class AppStoreTest {
 
         override suspend fun deleteRoutine(routineId: String) = Unit
 
+        override suspend fun reorderRoutines(ids: List<String>) = Unit
+
         override suspend fun saveWorkout(
             routineId: String,
             startedAt: String,

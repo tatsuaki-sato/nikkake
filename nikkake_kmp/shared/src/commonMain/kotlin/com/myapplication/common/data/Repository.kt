@@ -285,6 +285,13 @@ class Repository(val db: LocalDb) : NikkakeRepository {
         db.update(Collections.ROUTINES, Routine.serializer(), routineId) { it.copy(isActive = isActive) }
     }
 
+    /** 渡された順番がそのまま sort_order になる（並べ替えの対象外のルーティンは触らない） */
+    fun reorderRoutinesLocal(ids: List<String>) {
+        ids.forEachIndexed { index, id ->
+            db.update(Collections.ROUTINES, Routine.serializer(), id) { it.copy(sortOrder = index) }
+        }
+    }
+
     fun deleteRoutineLocal(routineId: String) {
         db.softDeleteWhere(Collections.ROUTINE_EXERCISES, RoutineExercise.serializer()) {
             it.routineId == routineId
@@ -472,6 +479,8 @@ class Repository(val db: LocalDb) : NikkakeRepository {
         setRoutineActiveLocal(routineId, isActive)
 
     override suspend fun deleteRoutine(routineId: String) = deleteRoutineLocal(routineId)
+
+    override suspend fun reorderRoutines(ids: List<String>) = reorderRoutinesLocal(ids)
 
     override suspend fun resetAll() = resetAllLocal()
 

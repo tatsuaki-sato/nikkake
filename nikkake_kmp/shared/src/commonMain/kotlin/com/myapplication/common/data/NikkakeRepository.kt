@@ -49,6 +49,9 @@ interface NikkakeRepository {
     suspend fun setRoutineActive(routineId: String, isActive: Boolean)
     suspend fun deleteRoutine(routineId: String)
 
+    /** 渡された順番がそのまま並び順になる（並べ替えの対象外のルーティンは触らない） */
+    suspend fun reorderRoutines(ids: List<String>)
+
     // ---------- 記録 ----------
 
     /**

@@ -134,6 +134,8 @@ class BackendSwitch(
 
     override suspend fun deleteRoutine(routineId: String) = current.deleteRoutine(routineId)
 
+    override suspend fun reorderRoutines(ids: List<String>) = current.reorderRoutines(ids)
+
     override suspend fun saveWorkout(
         routineId: String,
         startedAt: String,

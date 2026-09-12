@@ -247,6 +247,11 @@ export const deleteRoutine = async (routineId: string): Promise<void> => {
   lockVersions.delete(routineId);
 };
 
+export const reorderRoutines = async (ids: string[]): Promise<void> => {
+  const result = await api.reorderRoutines(ids);
+  if (result.userErrors.length > 0) throw new Error(result.userErrors[0].message);
+};
+
 export const createCustomExercise = async (input: {
   name: string;
   category: ExerciseCategory;
