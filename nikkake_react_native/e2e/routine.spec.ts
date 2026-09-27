@@ -101,6 +101,31 @@ test.describe('ルーティン管理', () => {
     await expect(routinesScreen(page).getByText('いつものルーティン')).toHaveCount(0);
   });
 
+  test('通知の時刻を設定すると、編集し直しても残っている', async ({ page }) => {
+    await page.locator('[data-testid^="routine-edit-"]').first().click();
+    await expect(page.getByTestId('routine-form')).toBeVisible();
+
+    await page.getByTestId('remind-on').click();
+    await page.getByTestId('preferred-time-input').fill('25:00');
+    await page.getByTestId('routine-submit').click();
+    await expect(page.getByTestId('error-message')).toContainText('HH:MM');
+
+    await page.getByTestId('preferred-time-input').fill('06:45');
+    await page.getByTestId('routine-submit').click();
+    await expect(routinesScreen(page)).toBeVisible();
+
+    await page.locator('[data-testid^="routine-edit-"]').first().click();
+    await expect(page.getByTestId('preferred-time-input')).toHaveValue('06:45');
+
+    // 通知しないに戻すと時刻は消える
+    await page.getByTestId('remind-off').click();
+    await page.getByTestId('routine-submit').click();
+    await expect(routinesScreen(page)).toBeVisible();
+
+    await page.locator('[data-testid^="routine-edit-"]').first().click();
+    await expect(page.getByTestId('preferred-time-input')).toHaveCount(0);
+  });
+
   test('編集画面から削除できる', async ({ page }) => {
     acceptDialogs(page);
 

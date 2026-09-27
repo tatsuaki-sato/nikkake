@@ -5,7 +5,7 @@
 
 const ROUTINE_FIELDS = `
   id name description color icon
-  frequencyType frequencyValue frequencyDays
+  frequencyType frequencyValue frequencyDays preferredTime
   isActive sortOrder lockVersion
   routineExercises {
     id sortOrder targetSets targetReps targetWeight targetDurationSec restSec
@@ -128,10 +128,11 @@ export const SIGN_OUT = `
 export const CREATE_ROUTINE = `
   mutation CreateRoutine($id: ID!, $name: String!, $description: String, $icon: String!,
                          $color: String!, $frequencyType: FrequencyType!, $frequencyValue: Int,
-                         $frequencyDays: [Int!], $exercises: [RoutineExerciseInput!]!) {
+                         $frequencyDays: [Int!], $preferredTime: String,
+                         $exercises: [RoutineExerciseInput!]!) {
     createRoutine(id: $id, name: $name, description: $description, icon: $icon, color: $color,
                   frequencyType: $frequencyType, frequencyValue: $frequencyValue,
-                  frequencyDays: $frequencyDays, exercises: $exercises) {
+                  frequencyDays: $frequencyDays, preferredTime: $preferredTime, exercises: $exercises) {
       routine { ${ROUTINE_FIELDS} }
       userErrors { message code path }
     }
@@ -141,12 +142,12 @@ export const CREATE_ROUTINE = `
 export const UPDATE_ROUTINE = `
   mutation UpdateRoutine($id: ID!, $name: String!, $description: String, $icon: String!,
                          $color: String!, $frequencyType: FrequencyType!, $frequencyValue: Int,
-                         $frequencyDays: [Int!], $isActive: Boolean, $lockVersion: Int!,
-                         $exercises: [RoutineExerciseInput!]!) {
+                         $frequencyDays: [Int!], $preferredTime: String, $isActive: Boolean,
+                         $lockVersion: Int!, $exercises: [RoutineExerciseInput!]!) {
     updateRoutine(id: $id, name: $name, description: $description, icon: $icon, color: $color,
                   frequencyType: $frequencyType, frequencyValue: $frequencyValue,
-                  frequencyDays: $frequencyDays, isActive: $isActive, lockVersion: $lockVersion,
-                  exercises: $exercises) {
+                  frequencyDays: $frequencyDays, preferredTime: $preferredTime, isActive: $isActive,
+                  lockVersion: $lockVersion, exercises: $exercises) {
       routine { ${ROUTINE_FIELDS} }
       userErrors { message code path }
     }

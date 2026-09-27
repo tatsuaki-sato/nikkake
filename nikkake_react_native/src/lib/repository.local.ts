@@ -483,6 +483,7 @@ const toApiRoutine = (routine: RoutineWithExercises): ApiRoutine => ({
   frequencyType: upper(routine.frequency_type),
   frequencyValue: routine.frequency_value,
   frequencyDays: routine.frequency_days,
+  preferredTime: routine.preferred_time,
   isActive: routine.is_active,
   sortOrder: routine.sort_order,
   // ローカルには楽観ロックが無い。サーバへ送る経路も無いので 0 で埋める

@@ -64,6 +64,7 @@ class SnapshotImporter
         color: r[:color], icon: r[:icon],
         frequency_type: r[:frequency_type], frequency_value: r[:frequency_value],
         frequency_days: r[:frequency_days] || [],
+        preferred_time: r[:preferred_time].presence,
         is_active: r.fetch(:is_active, true), sort_order: r[:sort_order] || 0,
         deleted_at: r[:deleted_at],
         created_at: r[:created_at], updated_at: r[:updated_at]

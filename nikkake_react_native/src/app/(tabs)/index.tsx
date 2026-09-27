@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { getHome } from '../../lib/repository';
+import { syncReminders } from '../../lib/notifications';
 import { greetingForHour } from '../../lib/utils';
 import { Button, EmptyState, Spacing, Radius } from '../../components/ui';
 
@@ -27,6 +28,11 @@ export default function HomeScreen() {
   );
 
   const home = homeQuery.data;
+
+  // 通知は「今日まだ終えていない日」だけ鳴らしたいので、ホームを読むたびに並べ直す
+  useEffect(() => {
+    if (home) void syncReminders(home);
+  }, [home]);
   const streak = home?.streak ?? { current: 0, longest: 0, lastCompletedDate: null };
 
   const due = home?.due ?? [];

@@ -11,7 +11,8 @@ module Mutations
 
     def perform(**args)
       error = validate(name: args[:name], exercises: args[:exercises],
-                       frequency_type: args[:frequency_type], frequency_days: args[:frequency_days])
+                       frequency_type: args[:frequency_type], frequency_days: args[:frequency_days],
+                       preferred_time: args[:preferred_time])
       return ng(error) if error
 
       routine = current_user.routines.kept.find_by(id: args[:id])

@@ -163,6 +163,7 @@ export class NikkakeApi {
   async createRoutine(input: {
     name: string; description?: string | null; icon: string; color: string;
     frequencyType: Routine['frequencyType']; frequencyValue?: number; frequencyDays?: number[];
+    preferredTime?: string | null;
     exercises: RoutineExerciseInput[];
   }): Promise<MutationResult<Routine>> {
     await this.ensureSession();
@@ -176,7 +177,7 @@ export class NikkakeApi {
   async updateRoutine(input: {
     id: string; name: string; description?: string | null; icon: string; color: string;
     frequencyType: Routine['frequencyType']; frequencyValue?: number; frequencyDays?: number[];
-    isActive?: boolean; lockVersion: number; exercises: RoutineExerciseInput[];
+    preferredTime?: string | null; isActive?: boolean; lockVersion: number; exercises: RoutineExerciseInput[];
   }): Promise<MutationResult<Routine>> {
     await this.ensureSession();
     const data = await this.client.request<{

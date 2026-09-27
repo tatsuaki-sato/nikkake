@@ -6,6 +6,8 @@ import { Button, Card, ErrorText, Label, Spacing, Radius } from './ui';
 import { Exercise, ExerciseCategory, FrequencyType, RoutineWithExercises } from '../../types';
 import { RoutineExerciseInput, RoutineInput } from '../lib/repository';
 import { OFFLINE_SAVE_MESSAGE, isNetworkError } from '@nikkake/api-client';
+import { isValidTime } from '../lib/reminders';
+import { requestNotificationPermissions } from '../lib/notifications';
 
 /**
  * ルーティンの作成と編集で共通のフォーム。
@@ -52,6 +54,8 @@ export const RoutineForm: React.FC<RoutineFormProps> = ({
   const [frequencyType, setFrequencyType] = useState<FrequencyType>(initial?.frequency_type ?? 'daily');
   const [frequencyValue, setFrequencyValue] = useState(String(initial?.frequency_value ?? 2));
   const [frequencyDays, setFrequencyDays] = useState<number[]>(initial?.frequency_days ?? []);
+  const [remind, setRemind] = useState(Boolean(initial?.preferred_time));
+  const [preferredTime, setPreferredTime] = useState(initial?.preferred_time ?? '07:00');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -127,6 +131,10 @@ export const RoutineForm: React.FC<RoutineFormProps> = ({
       setError('曜日を1つ以上選んでください');
       return;
     }
+    if (remind && !isValidTime(preferredTime)) {
+      setError('通知の時刻は HH:MM で指定してください');
+      return;
+    }
 
     setError('');
     setSaving(true);
@@ -139,6 +147,7 @@ export const RoutineForm: React.FC<RoutineFormProps> = ({
         frequencyType,
         frequencyValue: frequencyType === 'every_n_days' ? Math.max(1, parseInt(frequencyValue, 10) || 1) : 1,
         frequencyDays: frequencyType === 'weekly' ? frequencyDays : [],
+        preferredTime: remind ? preferredTime : null,
         exercises: rows.map(({ key, name: _n, icon: _i, ...rest }) => rest),
       });
     } catch (e) {
@@ -257,6 +266,48 @@ export const RoutineForm: React.FC<RoutineFormProps> = ({
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.section}>
+        <Label>通知</Label>
+        <View style={styles.chipRow}>
+          {(
+            [
+              [false, '通知しない'],
+              [true, '予定の日に通知する'],
+            ] as [boolean, string][]
+          ).map(([value, label]) => (
+            <TouchableOpacity
+              key={label}
+              style={[styles.chip, remind === value && styles.chipSelected]}
+              onPress={() => {
+                setRemind(value);
+                // 許可は使うと決めた瞬間に求める。断られても保存は止めない（設定から後で許可できる）
+                if (value) void requestNotificationPermissions();
+              }}
+              accessibilityRole="button"
+              testID={`remind-${value ? 'on' : 'off'}`}
+            >
+              <Text style={[styles.chipText, remind === value && styles.chipTextSelected]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {remind ? (
+          <View style={styles.inlineRow}>
+            <TextInput
+              style={styles.smallInput}
+              value={preferredTime}
+              onChangeText={setPreferredTime}
+              placeholder="07:00"
+              placeholderTextColor={C.textSecondary}
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              testID="preferred-time-input"
+            />
+            <Text style={styles.unitText}>に通知（まだ終えていない日だけ）</Text>
           </View>
         ) : null}
       </View>

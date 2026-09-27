@@ -97,7 +97,7 @@ const toLocalRoutine = (r: ApiRoutine): RoutineWithExercises => {
     frequency_type: lower<FrequencyType>(r.frequencyType),
     frequency_value: r.frequencyValue,
     frequency_days: r.frequencyDays,
-    preferred_time: null,
+    preferred_time: r.preferredTime ?? null,
     is_active: r.isActive,
     sort_order: r.sortOrder,
     created_at: timestamp,
@@ -203,6 +203,7 @@ export const createRoutine = async (input: RoutineInput): Promise<Routine> => {
       frequencyType: upperFrequency(input.frequencyType),
       frequencyValue: input.frequencyValue,
       frequencyDays: input.frequencyDays,
+      preferredTime: input.preferredTime ?? null,
       exercises: toExerciseInputs(input),
     })
   );
@@ -224,6 +225,7 @@ export const updateRoutine = async (
       frequencyType: upperFrequency(input.frequencyType),
       frequencyValue: input.frequencyValue,
       frequencyDays: input.frequencyDays,
+      preferredTime: input.preferredTime ?? null,
       isActive: input.isActive ?? true,
       // 直前に読んだ版を送る。他端末が先に更新していれば CONFLICT で弾かれる
       lockVersion: lockVersions.get(routineId) ?? 0,

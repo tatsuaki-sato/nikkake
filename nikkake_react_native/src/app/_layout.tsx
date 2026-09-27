@@ -1,11 +1,11 @@
-import { Stack, ThemeProvider, DarkTheme } from 'expo-router';
+import { Stack, ThemeProvider, DarkTheme, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import 'react-native-reanimated';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSessionStore } from '../stores/sessionStore';
-import { setupNotificationHandler } from '../lib/notifications';
+import { setupNotificationHandler, onReminderOpened } from '../lib/notifications';
 import { prepareLocalData, registerInBackground } from '../lib/bootstrap';
 import { onServerReady } from '../lib/session';
 import { Colors } from '../constants/colors';
@@ -52,6 +52,12 @@ export default function RootLayout() {
     void start();
     return unsubscribe;
   }, [initializeSession]);
+
+  // 通知をタップしたら、そのルーティンのワークアウトをすぐ始められるようにする
+  useEffect(() => {
+    if (!ready) return;
+    return onReminderOpened(routineId => router.push(`/workout/${routineId}`));
+  }, [ready]);
 
   useEffect(() => {
     if (ready) {

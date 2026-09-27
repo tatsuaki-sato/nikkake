@@ -36,6 +36,8 @@ export interface Routine {
   frequencyType: FrequencyType;
   frequencyValue: number;
   frequencyDays: number[];
+  /** 通知を出す端末ローカルの時刻（HH:MM）。null なら通知しない */
+  preferredTime: string | null;
   isActive: boolean;
   sortOrder: number;
   lockVersion: number;
