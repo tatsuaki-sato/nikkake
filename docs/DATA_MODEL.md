@@ -50,7 +50,7 @@ GraphQL の応答だけは camelCase です（`packages/contract/schema.graphql`
 | `frequency_type` | text | `daily` / `every_n_days` / `weekly` |
 | `frequency_value` | int | `every_n_days` のときの間隔 |
 | `frequency_days` | int[] | `weekly` のときの曜日。**日=0 〜 土=6** |
-| `preferred_time` | time? | 未使用（通知機能で使う予定） |
+| `preferred_time` | time? | 通知を出す端末ローカルの時刻。null なら通知しない。API では `HH:MM` 文字列 |
 | `is_active` | bool | false なら一覧では薄く表示、ホームには出ない |
 | `sort_order` | int | 一覧の並び順 |
 | `lock_version` | int | 楽観ロック。更新時に送り、古ければ CONFLICT で弾く |

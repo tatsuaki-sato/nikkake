@@ -245,6 +245,8 @@ type Routine {
   frequencyValue: Int!
   "日=0 .. 土=6"
   frequencyDays: [Int!]!
+  "通知を出す端末ローカルの時刻（HH:MM）。null なら通知しない"
+  preferredTime: String
   isActive: Boolean!
   sortOrder: Int!
   "楽観ロック用。updateRoutine に必ず渡す"
@@ -406,6 +408,8 @@ input CreateRoutineInput {
   frequencyType: FrequencyType!
   frequencyValue: Int! = 1
   frequencyDays: [Int!]! = []
+  "HH:MM。null か空文字で通知なし"
+  preferredTime: String
   exercises: [RoutineExerciseInput!]!
   clientMutationId: String
 }
@@ -420,6 +424,8 @@ input UpdateRoutineInput {
   frequencyValue: Int! = 1
   frequencyDays: [Int!]! = []
   isActive: Boolean! = true
+  "HH:MM。省略すると変更しない。null か空文字で通知を外す"
+  preferredTime: String
   exercises: [RoutineExerciseInput!]!
   "他端末で更新されていたら CONFLICT を返す"
   lockVersion: Int!
@@ -509,6 +515,7 @@ input ImportRoutineInput {
   frequencyType: FrequencyType!
   frequencyValue: Int!
   frequencyDays: [Int!]!
+  preferredTime: String
   isActive: Boolean!
   sortOrder: Int!
   createdAt: DateTime!

@@ -10,6 +10,8 @@ module Mutations
       base.argument :frequency_type, Types::FrequencyTypeType
       base.argument :frequency_value, Integer, required: false, default_value: 1
       base.argument :frequency_days, [ Integer ], required: false, default_value: []
+      # 省略時は変更しない（この引数を知らない古いクライアントが更新しても消えないように）
+      base.argument :preferred_time, String, required: false
       base.argument :exercises, [ Types::RoutineExerciseInput ]
       base.argument :client_mutation_id, String, required: false
 

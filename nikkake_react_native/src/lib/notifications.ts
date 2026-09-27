@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { Routine } from '../../types';
+import type { HomeView } from './views';
+import { planReminders, REMINDER_ID_PREFIX } from './reminders';
 
 export const setupNotificationHandler = () => {
   Notifications.setNotificationHandler({
@@ -28,65 +29,53 @@ export const requestNotificationPermissions = async (): Promise<boolean> => {
   return finalStatus === 'granted';
 };
 
-export const scheduleRoutineReminder = async (routine: Routine) => {
-  if (Platform.OS === 'web' || !routine.is_active || !routine.preferred_time) return;
+/**
+ * 通知をホームの状態に合わせて並べ直す。ホームを読むたびに呼ぶ。
+ * 許可が無ければ何もしない（許可はフォームで通知をオンにしたときに求める）。
+ */
+let syncing: Promise<void> = Promise.resolve();
 
-  const [hours, minutes] = routine.preferred_time.split(':').map(Number);
-  
-  // まず既存のこのルーティンの通知をキャンセル
-  await cancelRoutineReminder(routine.id);
-
-  try {
-    if (routine.frequency_type === 'daily' || routine.frequency_type === 'every_n_days') {
-      // 毎日指定時刻にローカル通知（every_n_days の場合も一旦毎日鳴らして、不要な日はスキップする等の制御が必要だが、ここでは単純に毎日鳴らす設定とする）
-      await Notifications.scheduleNotificationAsync({
-        identifier: `routine_${routine.id}`,
-        content: {
-          title: 'ルーティンの時間です！ 🏋️',
-          body: `${routine.icon} ${routine.name} の予定時間になりました。`,
-          data: { routineId: routine.id },
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: hours,
-          minute: minutes,
-        },
-      });
-    } else if (routine.frequency_type === 'weekly' && routine.frequency_days.length > 0) {
-      // 曜日ごとに設定
-      for (const dayOfWeek of routine.frequency_days) {
-        // dayOfWeek: 0(Sun) - 6(Sat). expo-notifications では 1(Sun) - 7(Sat)
-        const expoWeekday = dayOfWeek + 1;
-        await Notifications.scheduleNotificationAsync({
-          identifier: `routine_${routine.id}_day_${dayOfWeek}`,
-          content: {
-            title: 'ルーティンの時間です！ 🏋️',
-            body: `${routine.icon} ${routine.name} の予定時間になりました。`,
-            data: { routineId: routine.id },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-            weekday: expoWeekday,
-            hour: hours,
-            minute: minutes,
-          },
-        });
-      }
-    }
-  } catch (error) {
-    console.error('Failed to schedule notification:', error);
-  }
+export const syncReminders = (home: HomeView, now: Date = new Date()): Promise<void> => {
+  // 連続で呼ばれても、取り消しと予約が混ざらないよう1本ずつ流す
+  syncing = syncing.then(() => applyReminders(home, now)).catch(error => {
+    console.error('Failed to schedule notifications:', error);
+  });
+  return syncing;
 };
 
-export const cancelRoutineReminder = async (routineId: string) => {
+const applyReminders = async (home: HomeView, now: Date) => {
   if (Platform.OS === 'web') return;
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted') return;
+
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  
   for (const notif of scheduled) {
-    if (notif.identifier.startsWith(`routine_${routineId}`)) {
+    if (notif.identifier.startsWith(REMINDER_ID_PREFIX)) {
       await Notifications.cancelScheduledNotificationAsync(notif.identifier);
     }
   }
+
+  for (const reminder of planReminders(home, now)) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: reminder.identifier,
+      content: {
+        title: reminder.title,
+        body: reminder.body,
+        data: { routineId: reminder.routineId },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminder.at },
+    });
+  }
+};
+
+/** 通知をタップしたらそのルーティンのワークアウトを開く */
+export const onReminderOpened = (open: (routineId: string) => void) => {
+  if (Platform.OS === 'web') return () => {};
+  const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+    const routineId = response.notification.request.content.data?.routineId;
+    if (typeof routineId === 'string') open(routineId);
+  });
+  return () => subscription.remove();
 };
 
 export const cancelAllReminders = async () => {

@@ -25,6 +25,7 @@ class RoutineWriter
         frequency_type: input[:frequency_type],
         frequency_value: input[:frequency_value] || 1,
         frequency_days: input[:frequency_days] || [],
+        preferred_time: input[:preferred_time].presence,
         sort_order: @user.routines.kept.count
       )
       replace_exercises(routine, input[:exercises])
@@ -37,7 +38,7 @@ class RoutineWriter
       # 他端末で更新されていたら弾く。移行前の last-write-wins の置き換え
       raise Conflict if input[:lock_version] && routine.lock_version != input[:lock_version]
 
-      routine.update!(
+      attrs = {
         name: input[:name],
         description: input[:description],
         color: input[:color],
@@ -46,7 +47,10 @@ class RoutineWriter
         frequency_value: input[:frequency_value] || 1,
         frequency_days: input[:frequency_days] || [],
         is_active: input.fetch(:is_active, true)
-      )
+      }
+      # 送られてこなければ据え置き。空文字なら通知を外す
+      attrs[:preferred_time] = input[:preferred_time].presence if input.key?(:preferred_time)
+      routine.update!(attrs)
       replace_exercises(routine, input[:exercises])
       routine
     end

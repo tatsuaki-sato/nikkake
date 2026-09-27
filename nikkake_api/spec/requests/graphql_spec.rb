@@ -292,6 +292,77 @@ RSpec.describe "GraphQL API", type: :request do
     end
   end
 
+  describe "通知の時刻" do
+    CREATE_WITH_TIME = <<~GQL
+      mutation($id: ID!, $time: String, $exercises: [RoutineExerciseInput!]!) {
+        createRoutine(id: $id, name: "朝", icon: "💪", color: "#6C5CE7", frequencyType: DAILY,
+                      preferredTime: $time, exercises: $exercises) {
+          routine { id preferredTime lockVersion }
+          userErrors { message code path }
+        }
+      }
+    GQL
+
+    UPDATE_TIME = <<~GQL
+      mutation($id: ID!, $lock: Int!, $time: String, $exercises: [RoutineExerciseInput!]!) {
+        updateRoutine(id: $id, name: "朝", icon: "💪", color: "#6C5CE7", frequencyType: DAILY,
+                      lockVersion: $lock, preferredTime: $time, exercises: $exercises) {
+          routine { preferredTime lockVersion }
+          userErrors { message code }
+        }
+      }
+    GQL
+
+    # preferredTime を知らない古いクライアントの更新
+    UPDATE_WITHOUT_TIME = <<~GQL
+      mutation($id: ID!, $lock: Int!, $exercises: [RoutineExerciseInput!]!) {
+        updateRoutine(id: $id, name: "朝", icon: "💪", color: "#6C5CE7", frequencyType: DAILY,
+                      lockVersion: $lock, exercises: $exercises) {
+          routine { preferredTime lockVersion }
+          userErrors { message code }
+        }
+      }
+    GQL
+
+    let(:exercises) { [ { id: SecureRandom.uuid, exerciseId: PUSH_UP_ID, targetSets: 1 } ] }
+
+    def create_with(token, time)
+      post_graphql(CREATE_WITH_TIME, variables: { id: SecureRandom.uuid, time: time, exercises: exercises },
+                                     token: token).dig("data", "createRoutine")
+    end
+
+    def update(query, token, variables)
+      post_graphql(query, variables: variables.merge(exercises: exercises), token: token)
+        .dig("data", "updateRoutine", "routine")
+    end
+
+    it "HH:MM で保存して、同じ形で返す" do
+      token, = signed_up
+
+      expect(create_with(token, "07:30").dig("routine", "preferredTime")).to eq("07:30")
+    end
+
+    it "HH:MM でなければ弾く" do
+      token, = signed_up
+
+      error = create_with(token, "25:00")["userErrors"].first
+
+      expect(error["message"]).to eq("通知の時刻は HH:MM で指定してください")
+      expect(error["path"]).to eq([ "preferredTime" ])
+    end
+
+    it "更新で省略すると据え置き、null を送ると外れる" do
+      token, = signed_up
+      routine = create_with(token, "07:30")["routine"]
+
+      kept = update(UPDATE_WITHOUT_TIME, token, id: routine["id"], lock: routine["lockVersion"])
+      expect(kept["preferredTime"]).to eq("07:30")
+
+      cleared = update(UPDATE_TIME, token, id: routine["id"], lock: kept["lockVersion"], time: nil)
+      expect(cleared["preferredTime"]).to be_nil
+    end
+  end
+
   describe "ルーティンの並び替え" do
     REORDER_ROUTINES = <<~GQL
       mutation($ids: [ID!]!) {
