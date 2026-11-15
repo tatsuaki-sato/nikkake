@@ -46,5 +46,11 @@ export const Chip = ({ label, selected, onClick, testId }: {
 );
 
 export const Loading = () => (
-  <div className="empty" data-testid="loading"><div className="muted">読み込み中…</div></div>
+  <div className="empty" data-testid="loading">
+    <div className="spinner" aria-hidden="true" />
+    <div className="muted" style={{ marginTop: 'var(--sp-3)' }}>読み込み中…</div>
+    <div className="muted" style={{ marginTop: 'var(--sp-2)', fontSize: 12 }}>
+      初回アクセス時はサーバの起動に1分ほどかかることがあります。そのままお待ちください。
+    </div>
+  </div>
 );

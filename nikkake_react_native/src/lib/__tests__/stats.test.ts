@@ -82,10 +82,12 @@ describe('calculateStreak', () => {
     expect(result.lastCompletedDate).toBe('2026-08-04');
   });
 
-  it('全種目やりきれなかった日(partial)もストリークは途切れない', () => {
-    // 4種目中3種目で終えた日にストリークが切れると習慣化の妨げになる
+  it('全種目やりきれなかった日(partial)はストリークに数えない', () => {
+    // 2026-11-14 仕様変更: partial は実施記録には残るが完了日には数えない
     const logs = [log('2026-08-04'), log('2026-08-05', 'partial')];
-    expect(calculateStreak(logs, today).current).toBe(2);
+    const result = calculateStreak(logs, today);
+    expect(result.current).toBe(1);
+    expect(result.lastCompletedDate).toBe('2026-08-04');
   });
 
   it('過去の最長ストリークを保持する', () => {

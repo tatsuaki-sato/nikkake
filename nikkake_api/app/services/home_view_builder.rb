@@ -28,15 +28,17 @@ class HomeViewBuilder
 
     items = routines.map do |routine|
       routine_logs = (logs_by_routine[routine.id] || []).sort_by(&:log_date).reverse
-      today_log = routine_logs.find { Domain::DateUtil.format_date(_1.log_date) == today_string }
+      today_logs = routine_logs.select { Domain::DateUtil.format_date(_1.log_date) == today_string }
       last_log = routine_logs.find { Domain::Stats.did_workout?(_1) }
 
       Item.new(
         routine: routine,
         is_due_today: Domain::Schedule.due_today?(routine: routine, last_log: last_log, today: @today),
-        # 全セット完了でなくても、記録を残した時点で今日の分は済んだものとして扱う。
-        # ストリークの判定と基準を揃えている。
-        is_completed: today_log.present? && Domain::Stats.did_workout?(today_log),
+        # 「今日は完了」は、今日の記録の中に全セット完了(completed)がある時だけ。
+        # partial の記録だけでは完了にしない（2026-11-14 仕様変更。
+        # ストリークの判定 Domain::Stats.completed_day? と基準を揃えている）。
+        # partial は同じ日に続けて実施できるよう due 側に残る。
+        is_completed: today_logs.any? { Domain::Stats.completed_day?(_1) },
         last_log: last_log,
         frequency_label: Domain::Schedule.frequency_label(routine)
       )

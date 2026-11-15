@@ -52,10 +52,12 @@ class StatsTest {
     }
 
     @Test
-    fun やりきれなかった日もストリークは途切れない() {
-        // 4種目中3種目で終えた日にストリークが切れると習慣化の妨げになる
+    fun やりきれなかった日はストリークに数えない() {
+        // 2026-11-14 仕様変更: partial は実施記録には残るが完了日には数えない
         val logs = listOf(buildLog("2026-08-04"), buildLog("2026-08-05", LogStatus.PARTIAL))
-        assertEquals(2, calculateStreak(logs, today).current)
+        val result = calculateStreak(logs, today)
+        assertEquals(1, result.current)
+        assertEquals("2026-08-04", result.lastCompletedDate)
     }
 
     @Test

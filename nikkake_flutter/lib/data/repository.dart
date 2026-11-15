@@ -296,18 +296,17 @@ class Repository implements NikkakeRepository {
       final routineLogs = logs.where((l) => l.routineId == routine.id).toList()
         ..sort((a, b) => b.logDate.compareTo(a.logDate));
 
-      RoutineLog? todayLog;
       RoutineLog? lastLog;
       for (final log in routineLogs) {
-        if (todayLog == null && log.logDate == today) todayLog = log;
         if (lastLog == null && log.status != LogStatus.skipped) lastLog = log;
       }
 
       return TodayRoutine(
         routine: routine,
-        // 全セット完了でなくても、記録を残した時点で今日の分は済んだものとして扱う。
-        // ストリークの判定(stats.didWorkout)と基準を揃えている。
-        isCompleted: todayLog != null && todayLog.status != LogStatus.skipped,
+        // 「今日は完了」は全セット完了(completed)の記録がある時だけ。
+        // partial だけでは完了にしない（2026-11-14 仕様変更。
+        // ストリークの判定(stats.completedDay)と基準を揃えている）。
+        isCompleted: routineLogs.any((l) => l.logDate == today && l.status == LogStatus.completed),
         isDueToday: isRoutineDueToday(routine.routine, lastLog, now),
         frequencyLabel: formatFrequency(routine.routine),
       );

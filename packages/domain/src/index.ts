@@ -89,17 +89,25 @@ export const greetingForHour = (hour: number): string => {
 // ---------- 楽観表示のための最小ロジック ----------
 
 /**
- * その日「やった」と数える基準。
- * 全セット完了だけを対象にすると、4種目中3種目やった日がノーカウントになる。
+ * その日「やった（実施した）」と数える基準。
+ * 活動量の集計（通算・カレンダーなど）に使う。
  */
 export const didWorkout = (log: { status: LogStatus }): boolean => log.status !== 'skipped';
 
 /**
+ * その日「完了した」と数える基準。ストリークと「今日は完了」判定に使う。
+ * 2026-11-14 の仕様変更で、partial は完了日に数えない
+ * （サーバ側 Domain::Stats.completed_day? と同じ基準）。
+ */
+export const completedDay = (log: { status: LogStatus }): boolean => log.status === 'completed';
+
+/**
  * 連続日数。通常はサーバの値を使い、これはサーバ未登録のあいだだけ使う。
- * 最終実施日が今日か昨日なら継続扱い。この猶予が ±1日のTZズレも吸収する。
+ * 数えるのは全セット完了(completed)の日だけ。
+ * 最終完了日が今日か昨日なら継続扱い。この猶予が ±1日のTZズレも吸収する。
  */
 export const calculateStreak = (logs: DateLike[], today: Date = new Date()): StreakInfo => {
-  const dates = Array.from(new Set(logs.filter(didWorkout).map(l => l.log_date))).sort();
+  const dates = Array.from(new Set(logs.filter(completedDay).map(l => l.log_date))).sort();
   if (dates.length === 0) return { current: 0, longest: 0, lastCompletedDate: null };
 
   let longest = 1;

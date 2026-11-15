@@ -12,7 +12,9 @@ import { Workout } from './Workout';
  * タップやクリックで別の表示に切り替える、ということをしない。
  * 今日のルーティンは、開いた瞬間からその種目のチェック欄がそのまま並んでいる
  * （ここでの「ホーム画面」は、URLも中身も変わらない、この関数が返す1つの画面のみを指す）。
- * 完了済みのルーティンもチェック欄は表示したままにする（やり直し・追加記録ができるように）。
+ * 完了済みのルーティンもチェック欄は表示したままにするが、二重記録を防ぐため
+ * 今日分はロックされ、開始・完了はできない（過去日付の追加記録は可能）。
+ * 部分的な記録(partial)の日はロックされず、続きを実施できる。
  * 完了後に別画面へ飛ばすこともしない。結果はその場に出す。
  *
  * 完了直後の結果はここ（Home）で持つ。ルーティンが「今日やる」→「完了」へ移ると
@@ -37,7 +39,10 @@ export const Home = ({ onCreateRoutine }: {
 
   const handleFinished = (routineId: string) => (result: WorkoutSummary | 'offline') => {
     setResults(prev => ({ ...prev, [routineId]: result }));
-    void qc.invalidateQueries();
+    // 記録後はホームだけでなく進捗・日別詳細も古くなる。
+    // 非アクティブなクエリも含めて取り直し、別タブへ移った直後に
+    // 完了前の値が見えることがないようにする。
+    void qc.invalidateQueries({ refetchType: 'all' });
   };
   const dismissResult = (routineId: string) =>
     setResults(prev => {
@@ -144,7 +149,8 @@ const RoutineSection = ({ item, state, result, onFinished, onDismissResult }: {
       </span>
     </div>
     <div style={{ marginTop: 'var(--sp-3)' }}>
-      <Workout routineId={item.routine.id} result={result} onFinished={onFinished} onDismissResult={onDismissResult} />
+      <Workout routineId={item.routine.id} completedToday={state === 'done'}
+               result={result} onFinished={onFinished} onDismissResult={onDismissResult} />
     </div>
   </div>
 );

@@ -286,14 +286,15 @@ export const getTodayRoutines = async (): Promise<TodayRoutine[]> => {
         .filter(l => l.routine_id === routine.id)
         .sort((a, b) => b.log_date.localeCompare(a.log_date));
 
-      const todayLog = routineLogs.find(l => l.log_date === today) ?? null;
+      const todayLogs = routineLogs.filter(l => l.log_date === today);
       const lastLog = routineLogs.find(l => l.status !== 'skipped') ?? null;
 
       return {
         routine,
-        // 全セット完了でなくても、記録を残した時点で今日の分は済んだものとして扱う。
-        // ストリークの判定（stats.didWorkout）と基準を揃えている。
-        isCompleted: !!todayLog && todayLog.status !== 'skipped',
+        // 「今日は完了」は全セット完了(completed)の記録がある時だけ。
+        // partial だけでは完了にしない（2026-11-14 仕様変更。
+        // ストリークの判定（stats.completedDay）と基準を揃えている）。
+        isCompleted: todayLogs.some(l => l.status === 'completed'),
         lastLog,
         isDueToday: isRoutineDueToday(routine, lastLog, new Date()),
       };
@@ -510,13 +511,14 @@ export const getHome = async (today: Date = new Date()): Promise<HomeView> => {
         .filter(l => l.routine_id === routine.id)
         .sort((a, b) => b.log_date.localeCompare(a.log_date));
 
-      const todayLog = routineLogs.find(l => l.log_date === todayString) ?? null;
+      const todayLogs = routineLogs.filter(l => l.log_date === todayString);
       const lastLog = routineLogs.find(l => l.status !== 'skipped') ?? null;
 
       return {
         routine: toApiRoutine(routine),
         isDueToday: isRoutineDueToday(routine, lastLog, today),
-        isCompleted: !!todayLog && todayLog.status !== 'skipped',
+        // サーバ側 HomeViewBuilder と同じ基準: 全セット完了(completed)がある時だけ
+        isCompleted: todayLogs.some(l => l.status === 'completed'),
         frequencyLabel: formatFrequency(routine),
       };
     });

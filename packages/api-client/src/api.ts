@@ -195,6 +195,19 @@ export class NikkakeApi {
     return { data: data.deleteRoutine.routine, userErrors: data.deleteRoutine.userErrors };
   }
 
+  /** ワークアウト記録を1件だけ削除する（サーバ側はソフトデリート）。進捗の日別詳細から使う */
+  async deleteRoutineLog(id: string): Promise<MutationResult<{ success: boolean }>> {
+    await this.ensureSession();
+    const data = await this.client.request<{
+      deleteRoutineLog: { success: boolean; userErrors: UserError[] };
+    }>(ops.DELETE_ROUTINE_LOG, { id });
+
+    return {
+      data: data.deleteRoutineLog.success ? { success: true } : null,
+      userErrors: data.deleteRoutineLog.userErrors,
+    };
+  }
+
   async setRoutineActive(id: string, isActive: boolean): Promise<MutationResult<Routine>> {
     await this.ensureSession();
     const data = await this.client.request<{

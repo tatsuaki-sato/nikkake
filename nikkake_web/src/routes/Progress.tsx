@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, formatDuration, formatWeight, getDateString } from '@nikkake/domain';
 import { api } from '../lib';
 import { Card, Chip, EmptyState, Loading } from '../components/ui';
@@ -17,6 +17,8 @@ export const Progress = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['progress', today, range],
     queryFn: () => api.progress(today, range),
+    // ホームで記録した直後に開いても完了前の集計を見せないよう、開くたびに取り直す
+    refetchOnMount: 'always',
   });
 
   const activeId = exerciseId ?? data?.exercisesWithLogs[0]?.id ?? null;
@@ -170,10 +172,30 @@ const MonthGrid = ({ doneDates, selected, onSelect }: {
 
 /** カレンダーで選んだ日のワークアウト内容。集計と同じくサーバが整形して返す */
 const DayDetail = ({ date, onClose }: { date: string; onClose: () => void }) => {
+  const qc = useQueryClient();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ['day', date],
     queryFn: () => api.day(date),
+    refetchOnMount: 'always',
   });
+
+  // 記録を1件だけ削除する。間違えて記録した分を取り消す手段がこれまで無かった。
+  const remove = async (routineLogId: string, routineName: string) => {
+    if (!window.confirm(`「${routineName}」の記録を削除しますか？`)) return;
+    setDeletingId(routineLogId);
+    try {
+      const res = await api.deleteRoutineLog(routineLogId);
+      if (res.userErrors.length > 0) {
+        window.alert(res.userErrors[0].message);
+        return;
+      }
+      // 集計・カレンダー・ホームの完了状態まで全部古くなるので取り直す
+      await qc.invalidateQueries({ refetchType: 'all' });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <Card testId="progress-day-detail">
@@ -198,6 +220,14 @@ const DayDetail = ({ date, onClose }: { date: string; onClose: () => void }) => 
                 <span>{e.setsLabel ?? '—'}</span>
               </div>
             ))}
+            <div style={{ textAlign: 'right', marginTop: 'var(--sp-2)' }}>
+              <button className="btn btn--ghost" style={{ width: 'auto' }}
+                      disabled={deletingId === w.routineLogId}
+                      onClick={() => void remove(w.routineLogId, w.routineName)}
+                      data-testid={`day-record-delete-${w.routineLogId}`}>
+                🗑 この記録を削除
+              </button>
+            </div>
           </div>
         ))
       )}
