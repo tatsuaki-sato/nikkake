@@ -234,7 +234,7 @@ class RepositoryTest {
     }
 
     @Test
-    fun 途中までの記録でも今日の分は済んだ扱いになる() = runTest {
+    fun 途中までの記録では今日の分は済んだ扱いにならない() = runTest {
         val repository = repo()
         val routine = repository.createRoutine(sampleRoutineInput())
         val link = repository.getRoutineWithExercises(routine.id)!!.exercises.first()
@@ -249,8 +249,10 @@ class RepositoryTest {
         )
         assertEquals(LogStatus.PARTIAL, summary.status)
 
+        // 2026-11-14 仕様変更: partial では今日の分は済んだ扱いにしない。
+        // 済んだ扱いは全セット完了(completed)の日だけ（ストリークと同じ基準）。
         val today = repository.getTodayRoutines().first { it.routine.id == routine.id }
-        assertTrue(today.isCompleted)
+        assertFalse(today.isCompleted)
     }
 
     @Test
