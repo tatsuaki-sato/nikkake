@@ -46,6 +46,12 @@ body {
 button { font-family: inherit; cursor: pointer; }
 input { font-family: inherit; }
 
+/* キーボード操作でも「いまどこを選んでいるか」が分かるようにする */
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--primary-light); outline-offset: 2px;
+}
+.set-input:focus { border-color: var(--primary-light); outline: none; }
+
 /* ---- レイアウト: SP は下タブ、PC は左サイドバー ---- */
 
 .shell { display: flex; flex-direction: column; height: 100%; }
@@ -60,6 +66,7 @@ input { font-family: inherit; }
 }
 .tabbar__item {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-height: 56px; justify-content: center;
   padding: var(--sp-2); background: none; border: none;
   color: var(--text-secondary); font-size: 11px;
 }
@@ -106,6 +113,7 @@ input { font-family: inherit; }
 .btn--danger { background: transparent; color: var(--error); border: 1px solid var(--error); }
 
 .chip {
+  min-height: 36px; display: inline-flex; align-items: center;
   padding: var(--sp-2) var(--sp-3); border-radius: var(--r-pill);
   background: var(--surface); border: 1px solid var(--border);
   color: var(--text-primary); font-size: 13px;
@@ -125,6 +133,7 @@ input { font-family: inherit; }
 .spinner { width: 36px; height: 36px; margin: 0 auto; border-radius: 50%;
   border: 4px solid var(--border); border-top-color: var(--accent);
   animation: nikkake-spin 0.9s linear infinite; }
+.spinner--sm { width: 16px; height: 16px; margin: 0; border-width: 2px; flex: 0 0 auto; }
 @keyframes nikkake-spin { to { transform: rotate(360deg); } }
 .empty__icon { font-size: 56px; }
 .empty__title { font-size: 18px; font-weight: bold; margin: var(--sp-3) 0 var(--sp-2); }
@@ -144,19 +153,20 @@ input { font-family: inherit; }
 .set-row--done { background: var(--surface-elevated); }
 .set-input { width: 100%; padding: var(--sp-2); text-align: center; font-size: 16px;
   background: var(--bg); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--r-sm); }
-.check { width: 40px; height: 36px; border-radius: var(--r-sm); background: var(--bg);
-  border: 1px solid var(--border); color: var(--bg); font-weight: bold; }
+.check { width: 44px; height: 44px; border-radius: var(--r-sm); background: var(--bg);
+  border: 1px solid var(--border); color: var(--bg); font-weight: bold; font-size: 18px; }
 .check[aria-checked="true"] { background: var(--success); border-color: var(--success); }
 
-.bar-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; }
+.bar-chart { display: flex; align-items: flex-end; gap: 2px; height: 132px; }
 .bar-chart__col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
 .bar-chart__bar { width: 80%; border-radius: 2px; background: var(--border); }
 .bar-chart__bar--on { background: var(--success); }
+.bar-chart__value { font-size: 10px; font-weight: bold; color: var(--text-primary); margin-bottom: 2px; }
 .bar-chart__label { font-size: 9px; color: var(--text-secondary); margin-top: var(--sp-1); }
 
 .calendar__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-2); }
 .calendar__title { font-weight: bold; white-space: nowrap; }
-.calendar__nav { width: 44px; min-height: 36px; flex: 0 0 auto; background: transparent; border: 0;
+.calendar__nav { width: 44px; min-height: 44px; flex: 0 0 auto; background: transparent; border: 0;
   color: var(--primary-light); font-size: 15px; cursor: pointer; border-radius: var(--r-sm); }
 .calendar__nav:disabled { opacity: 0.3; cursor: default; }
 .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }

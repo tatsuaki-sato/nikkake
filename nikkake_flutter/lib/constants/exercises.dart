@@ -31,13 +31,13 @@ class PresetExercise {
 const presetExercises = <PresetExercise>[
   // 胸
   PresetExercise(id: '00000000-0000-4000-8000-000000000001', name: 'ベンチプレス', category: ExerciseCategory.strength, icon: '🏋️'),
-  PresetExercise(id: '00000000-0000-4000-8000-000000000002', name: 'ダンベルフライ', category: ExerciseCategory.strength, icon: '🦅'),
+  PresetExercise(id: '00000000-0000-4000-8000-000000000002', name: 'ダンベルフライ', category: ExerciseCategory.strength, icon: '🪽'),
   PresetExercise(id: '00000000-0000-4000-8000-000000000003', name: '腕立て伏せ', category: ExerciseCategory.strength, icon: '💪', bodyweight: true),
   PresetExercise(id: '00000000-0000-4000-8000-000000000004', name: 'インクラインベンチプレス', category: ExerciseCategory.strength, icon: '🏋️'),
   // 背中
   PresetExercise(id: '00000000-0000-4000-8000-000000000005', name: 'デッドリフト', category: ExerciseCategory.strength, icon: '🏋️'),
   PresetExercise(id: '00000000-0000-4000-8000-000000000006', name: 'ラットプルダウン', category: ExerciseCategory.strength, icon: '💪'),
-  PresetExercise(id: '00000000-0000-4000-8000-000000000007', name: '懸垂', category: ExerciseCategory.strength, icon: '🔝', bodyweight: true),
+  PresetExercise(id: '00000000-0000-4000-8000-000000000007', name: '懸垂', category: ExerciseCategory.strength, icon: '🧗', bodyweight: true),
   PresetExercise(id: '00000000-0000-4000-8000-000000000008', name: 'ベントオーバーロウ', category: ExerciseCategory.strength, icon: '🏋️'),
   // 脚
   PresetExercise(id: '00000000-0000-4000-8000-000000000009', name: 'スクワット', category: ExerciseCategory.strength, icon: '🦵', bodyweight: true),

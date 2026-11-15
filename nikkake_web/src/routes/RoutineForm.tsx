@@ -6,7 +6,14 @@ import { OFFLINE_SAVE_MESSAGE, isNetworkError } from '@nikkake/api-client';
 import { api } from '../lib';
 import { Button, Card, Chip, ErrorText, Loading } from '../components/ui';
 
-const ICONS = ['💪', '🏃', '🎮', '🏋️', '🚴', '🔥'];
+const ICONS = ['💪', '🏃', '🧘', '🏋️', '🚴', '🔥'];
+
+/** 種目ピッカーの見出し。自重と器具が混ざって見えるのでカテゴリで分ける */
+const CATEGORY_GROUPS: Array<{ key: ExerciseCategory; label: string }> = [
+  { key: 'STRENGTH', label: '筋トレ' },
+  { key: 'CARDIO', label: '有酸素' },
+  { key: 'GAME', label: 'ゲーム' },
+];
 const COLORS = ['#6C5CE7', '#00B894', '#0984E3', '#D63031', '#FDCB6E', '#E84393'];
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
 const DEFAULT_REST_SEC = 60;
@@ -210,11 +217,11 @@ export const RoutineForm = ({ routineId, onDone }: {
                 <span style={{ flex: 1, fontWeight: 'bold' }} data-testid={`exercise-row-${i}`}>
                   {row.icon} {row.name}
                 </span>
-                <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 28 }}
+                <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 36 }}
                         onClick={() => move(i, -1)} data-testid={`exercise-up-${i}`}>↑</button>
-                <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 28 }}
+                <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 36 }}
                         onClick={() => move(i, 1)} data-testid={`exercise-down-${i}`}>↓</button>
-                <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 28 }}
+                <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 36 }}
                         onClick={() => setRows(prev => prev.filter((_, idx) => idx !== i))}
                         data-testid={`exercise-remove-${i}`}>✕</button>
               </div>
@@ -248,18 +255,28 @@ export const RoutineForm = ({ routineId, onDone }: {
         {pickerOpen && (
           <div style={{ marginTop: 'var(--sp-2)' }}>
             <Card testId="exercise-picker">
-              <div className="row" style={{ flexWrap: 'wrap' }}>
-                {(exercisesQuery.data ?? []).map(e => (
-                  <Chip key={e.id} label={`${e.icon ?? ''} ${e.name}`} selected={false}
-                        onClick={() => addExercise(e)} testId={`pick-exercise-${e.id}`} />
-                ))}
-              </div>
+              <div className="muted" style={{ marginBottom: 'var(--sp-2)' }}>タップすると追加されます</div>
+              {CATEGORY_GROUPS.map(group => {
+                const items = (exercisesQuery.data ?? []).filter(e => e.category === group.key);
+                if (items.length === 0) return null;
+                return (
+                  <div key={group.key} style={{ marginTop: 'var(--sp-2)' }}>
+                    <div className="muted" style={{ fontWeight: 'bold', marginBottom: 'var(--sp-1)' }}>{group.label}</div>
+                    <div className="row" style={{ flexWrap: 'wrap' }}>
+                      {items.map(e => (
+                        <Chip key={e.id} label={`${e.icon ?? ''} ${e.name}`} selected={false}
+                              onClick={() => addExercise(e)} testId={`pick-exercise-${e.id}`} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </Card>
           </div>
         )}
       </div>
 
-      <Button label={isEdit ? '保存する' : '作成する'} onClick={submit} disabled={saving} testId="routine-submit" />
+      <Button label={saving ? '保存中…' : isEdit ? '保存する' : '作成する'} onClick={submit} disabled={saving} testId="routine-submit" />
       <Button label="キャンセル" variant="ghost" onClick={onDone} testId="routine-cancel" />
     </div>
   );

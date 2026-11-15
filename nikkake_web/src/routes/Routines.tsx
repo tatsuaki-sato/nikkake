@@ -35,6 +35,7 @@ export const Routines = ({ onEdit, onCreate }: {
 
   return (
     <div data-testid="routines-screen">
+      <h2 className="section-title" style={{ marginTop: 0 }}>ルーティン</h2>
       {data.length === 0 ? (
         <EmptyState
           testId="routines-empty"
@@ -49,7 +50,7 @@ export const Routines = ({ onEdit, onCreate }: {
             <div key={r.id} className={`routine-card${r.isActive ? '' : ' routine-card--muted'}`}
                  style={{ flexDirection: 'column', alignItems: 'stretch' }}
                  data-testid={`routine-row-${r.id}`}>
-              <button className="row" style={{ background: 'none', border: 'none', color: 'inherit', textAlign: 'left', width: '100%' }}
+              <button className="row" style={{ background: 'none', border: 'none', color: 'inherit', textAlign: 'left', width: '100%', minHeight: 48 }}
                       onClick={() => onEdit(r.id)} data-testid={`routine-edit-${r.id}`}>
                 <span className="routine-card__icon" style={{ backgroundColor: r.color }}>{r.icon}</span>
                 <span className="routine-card__body">
@@ -58,29 +59,30 @@ export const Routines = ({ onEdit, onCreate }: {
                     {r.routineExercises.length}種目{r.isActive ? '' : ' ・ 停止中'}
                   </div>
                 </span>
+                <span className="muted" style={{ flex: '0 0 auto' }}>編集 ›</span>
               </button>
               <div className="row" style={{ justifyContent: 'space-between', marginTop: 'var(--sp-2)' }}>
                 <div className="row" style={{ gap: 'var(--sp-2)' }}>
-                  <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 28, padding: '0 var(--sp-2)' }}
+                  <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 36, padding: '0 var(--sp-2)' }}
                           aria-label="上へ移動" disabled={i === 0}
                           onClick={() => move(i, -1)} data-testid={`routine-move-up-${r.id}`}>▲</button>
-                  <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 28, padding: '0 var(--sp-2)' }}
+                  <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 36, padding: '0 var(--sp-2)' }}
                           aria-label="下へ移動" disabled={i === data.length - 1}
                           onClick={() => move(i, 1)} data-testid={`routine-move-down-${r.id}`}>▼</button>
                 </div>
                 <div className="row" style={{ gap: 'var(--sp-2)' }}>
-                  <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 28 }}
+                  <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 36 }}
                           aria-label={r.isActive ? 'ホームから一時的に外す' : 'ホームに戻す'}
                           onClick={() => toggle.mutate({ id: r.id, isActive: !r.isActive })}
                           data-testid={`routine-toggle-${r.id}`}>
-                    {r.isActive ? '⏸ 停止' : '▶ 再開'}
+                    {r.isActive ? '⏸ 一時停止' : '▶ 再開'}
                   </button>
-                  <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 28 }} aria-label="削除する"
+                  <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 36 }} aria-label="削除する"
                           onClick={() => {
                             if (confirm(`「${r.name}」を削除しますか？これまでの記録は残ります。`)) remove.mutate(r.id);
                           }}
                           data-testid={`routine-delete-${r.id}`}>
-                    🗑
+                    🗑 削除
                   </button>
                 </div>
               </div>

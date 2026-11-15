@@ -30,13 +30,13 @@ const presetId = (n: number): string =>
 export const PRESET_EXERCISES: PresetExercise[] = [
   // 胸
   { id: presetId(1), name: 'ベンチプレス', category: 'strength', icon: '🏋️', bodyweight: false, timeBased: false },
-  { id: presetId(2), name: 'ダンベルフライ', category: 'strength', icon: '🦅', bodyweight: false, timeBased: false },
+  { id: presetId(2), name: 'ダンベルフライ', category: 'strength', icon: '🪽', bodyweight: false, timeBased: false },
   { id: presetId(3), name: '腕立て伏せ', category: 'strength', icon: '💪', bodyweight: true, timeBased: false },
   { id: presetId(4), name: 'インクラインベンチプレス', category: 'strength', icon: '🏋️', bodyweight: false, timeBased: false },
   // 背中
   { id: presetId(5), name: 'デッドリフト', category: 'strength', icon: '🏋️', bodyweight: false, timeBased: false },
   { id: presetId(6), name: 'ラットプルダウン', category: 'strength', icon: '💪', bodyweight: false, timeBased: false },
-  { id: presetId(7), name: '懸垂', category: 'strength', icon: '🔝', bodyweight: true, timeBased: false },
+  { id: presetId(7), name: '懸垂', category: 'strength', icon: '🧗', bodyweight: true, timeBased: false },
   { id: presetId(8), name: 'ベントオーバーロウ', category: 'strength', icon: '🏋️', bodyweight: false, timeBased: false },
   // 脚
   { id: presetId(9), name: 'スクワット', category: 'strength', icon: '🦵', bodyweight: true, timeBased: false },
