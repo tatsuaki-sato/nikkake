@@ -185,10 +185,13 @@ RSpec.describe "GraphQL API", type: :request do
       expect(home["today"]).to eq("2020-01-01")
     end
 
-    it "記録すると完了区分へ移る" do
+    it "全セット記録すると完了区分へ移る" do
       token, user = signed_up
+      # 2026-11-14 仕様変更: 完了区分へ移るのは全セット完了(completed)の記録だけ。
+      # 一部だけの記録(partial)では due に残る。
+      sets = 11.times.map { |i| a_set(number: i + 1) }
       vars = { id: SecureRandom.uuid, rid: user.routines.kept.first.id,
-               date: "2026-08-05", sets: [ a_set ], total: 11 }
+               date: "2026-08-05", sets: sets, total: 11 }
       post_graphql(RECORD_WORKOUT, variables: vars, token: token)
 
       home = post_graphql(HOME_QUERY, variables: { today: "2026-08-05" }, token: token).dig("data", "home")

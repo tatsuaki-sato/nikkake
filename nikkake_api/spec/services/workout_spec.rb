@@ -114,9 +114,22 @@ RSpec.describe "ワークアウトの記録と集計" do
       expect(view.due.first.frequency_label).to eq("毎日")
     end
 
-    it "途中までの記録でも今日の分は完了扱いになる" do
+    it "途中までの記録では今日の分は完了扱いにならない" do
+      # 2026-11-14 仕様変更: partial の記録だけでは完了にしない。
+      # 完了扱いは全セット完了(completed)の日だけ（ストリークと同じ基準）。
       routine
       record(sets: [ set_row(exercise_id: push_up_id) ], total_sets: 11)
+
+      view = described_class.new(user: user, today: today).call
+
+      expect(view.completed).to be_empty
+      expect(view.due.size).to eq(1)
+    end
+
+    it "全セット記録すると今日の分は完了扱いになる" do
+      routine
+      full = 11.times.map { set_row(exercise_id: push_up_id, number: _1 + 1) }
+      record(sets: full, total_sets: 11)
 
       view = described_class.new(user: user, today: today).call
 
