@@ -49,6 +49,8 @@ export const Workout = ({ routineId, completedToday, result, onFinished, onDismi
   const [elapsed, setElapsed] = useState(0);
   // タイマーはホームを開いた瞬間ではなく、人間が「開始」を押した時だけ進む
   const [running, setRunning] = useState(false);
+  // 一度でも開始したら、一時停止後のボタンは「開始」ではなく「再開」と出す
+  const [hasStarted, setHasStarted] = useState(false);
   const [rest, setRest] = useState(0);
   const [saving, setSaving] = useState(false);
   // 過去の日付の実績も登録できるように。既定は今日（日付はサーバではなく端末が決める）
@@ -182,9 +184,11 @@ export const Workout = ({ routineId, completedToday, result, onFinished, onDismi
         <input type="date" className="set-input" style={{ width: 'auto' }} value={logDate} max={today}
                onChange={e => setLogDate(e.target.value)} data-testid="workout-log-date" />
         <div style={{ flex: 1 }} />
-        <button className="btn" style={{ width: 'auto' }} onClick={finish}
+        <button className="btn" style={{ width: 'auto', display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)', justifyContent: 'center' }}
+                onClick={finish} aria-busy={saving}
                 disabled={saving || locked || totals.done === 0} data-testid="workout-finish">
-          完了
+          {saving && <span className="spinner spinner--sm" aria-hidden="true" />}
+          {saving ? '保存中…' : '完了'}
         </button>
       </div>
 
@@ -201,8 +205,9 @@ export const Workout = ({ routineId, completedToday, result, onFinished, onDismi
 
       <div className="row" style={{ marginBottom: 'var(--sp-3)' }}>
         <button className="btn btn--ghost" style={{ width: 'auto' }} disabled={locked}
-                onClick={() => setRunning(v => !v)} data-testid="workout-timer-toggle">
-          {running ? '⏸ 一時停止' : '▶ 開始'}
+                onClick={() => { if (!running) setHasStarted(true); setRunning(v => !v); }}
+                data-testid="workout-timer-toggle">
+          {running ? '⏸ 一時停止' : hasStarted ? '▶ 再開' : '▶ 開始'}
         </button>
         <div className="muted" data-testid="workout-elapsed" style={{ marginLeft: 'var(--sp-2)' }}>
           {formatDuration(elapsed)}
@@ -211,6 +216,7 @@ export const Workout = ({ routineId, completedToday, result, onFinished, onDismi
 
       {result && (
         <div className="card card--elevated" style={{ marginBottom: 'var(--sp-3)', textAlign: 'center' }}
+             role="status" aria-live="polite"
              data-testid="workout-result" onClick={onDismissResult}>
           {result === 'offline' ? (
             <>
@@ -228,7 +234,11 @@ export const Workout = ({ routineId, completedToday, result, onFinished, onDismi
               </div>
             </>
           )}
-          <div className="muted" style={{ marginTop: 'var(--sp-2)' }}>タップで閉じる</div>
+          {/* 勝手に消えると「保存できたか分からない」ので、閉じるのは本人の操作だけにする */}
+          <button className="btn btn--ghost" style={{ width: 'auto', minHeight: 44, marginTop: 'var(--sp-2)' }}
+                  onClick={onDismissResult} data-testid="workout-result-close">
+            閉じる
+          </button>
         </div>
       )}
 
@@ -237,6 +247,13 @@ export const Workout = ({ routineId, completedToday, result, onFinished, onDismi
           height: 4, borderRadius: 2, background: 'var(--success)',
           width: `${totals.total === 0 ? 0 : Math.round((totals.done / totals.total) * 100)}%`,
         }} />
+      </div>
+
+      {/* 操作の仕様は画面のどこにも書かれていなかったので、初回でも迷わないよう補う */}
+      <div className="muted" style={{ marginTop: 'var(--sp-3)' }} data-testid="workout-hints">
+        💡 セットにチェックを入れると休憩タイマーが自動で始まります（タップでスキップできます）。
+        「＋ セットを追加」「− セットを減らす」で変えたセット数も、そのまま今日の記録に反映されます。
+        重さが空欄のセットは「自重」として記録されます。
       </div>
 
       {rest > 0 && (
@@ -270,7 +287,7 @@ export const Workout = ({ routineId, completedToday, result, onFinished, onDismi
               <Card>
                 <div className={`set-row${hasNoWeight ? ' set-row--no-weight' : ''}`} style={{ borderTop: 'none' }}>
                   <div className="muted">セット</div>
-                  {!hasNoWeight && <div className="muted" style={{ textAlign: 'center' }}>kg</div>}
+                  {!hasNoWeight && <div className="muted" style={{ textAlign: 'center' }}>重さ(kg)</div>}
                   <div className="muted" style={{ textAlign: 'center' }}>{isTimeBased ? '秒' : '回'}</div>
                   <div className="muted" style={{ textAlign: 'center' }}>完了</div>
                 </div>

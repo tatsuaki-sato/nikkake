@@ -24,13 +24,13 @@ data class PresetExercise(
 val presetExercises = listOf(
     // 胸
     PresetExercise(presetId(1), "ベンチプレス", ExerciseCategory.STRENGTH, "🏋️"),
-    PresetExercise(presetId(2), "ダンベルフライ", ExerciseCategory.STRENGTH, "🦅"),
+    PresetExercise(presetId(2), "ダンベルフライ", ExerciseCategory.STRENGTH, "🪽"),
     PresetExercise(presetId(3), "腕立て伏せ", ExerciseCategory.STRENGTH, "💪", bodyweight = true),
     PresetExercise(presetId(4), "インクラインベンチプレス", ExerciseCategory.STRENGTH, "🏋️"),
     // 背中
     PresetExercise(presetId(5), "デッドリフト", ExerciseCategory.STRENGTH, "🏋️"),
     PresetExercise(presetId(6), "ラットプルダウン", ExerciseCategory.STRENGTH, "💪"),
-    PresetExercise(presetId(7), "懸垂", ExerciseCategory.STRENGTH, "🔝", bodyweight = true),
+    PresetExercise(presetId(7), "懸垂", ExerciseCategory.STRENGTH, "🧗", bodyweight = true),
     PresetExercise(presetId(8), "ベントオーバーロウ", ExerciseCategory.STRENGTH, "🏋️"),
     // 脚
     PresetExercise(presetId(9), "スクワット", ExerciseCategory.STRENGTH, "🦵", bodyweight = true),

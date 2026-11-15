@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib';
-import { Button, Card, ErrorText, Loading } from '../components/ui';
+import { Button, Card, Chip, ErrorText, Loading } from '../components/ui';
 
 /**
  * 設定。バックアップ（サインイン）は任意機能であることを明示する。
@@ -17,6 +17,10 @@ export const Settings = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 未登録の人が「初めて登録する」のか「登録済みのアカウントでログインする」のか
+  const [mode, setMode] = useState<'register' | 'login'>('register');
+  // ログイン時に、この端末で貯めた匿名の記録をアカウントへ統合するか
+  const [merge, setMerge] = useState(true);
   const pending = api.queue.pending().length;
   const dead = api.queue.dead().length;
 
@@ -34,6 +38,23 @@ export const Settings = () => {
     }
     setEmail('');
     setPassword('');
+    await refetch();
+  };
+
+  const login = async () => {
+    setBusy(true);
+    setError(null);
+    const result = await api.linkExistingAccount(email.trim(), password, merge);
+    setBusy(false);
+
+    if (result.userErrors.length > 0) {
+      setError(result.userErrors[0].message);
+      return;
+    }
+    setEmail('');
+    setPassword('');
+    // アカウントが切り替わると全画面のデータが入れ替わるので、全部取り直す
+    await qc.invalidateQueries({ refetchType: 'all' });
     await refetch();
   };
 
@@ -57,24 +78,44 @@ export const Settings = () => {
       {data.isAnonymous ? (
         <Card testId="settings-anonymous-card">
           <div className="row">
-            <span style={{ fontSize: 28 }}>☁️</span>
+            <span style={{ fontSize: 28 }}>📱</span>
             <div>
-              <div style={{ fontWeight: 'bold' }}>バックアップ中（アカウント未登録）</div>
+              <div style={{ fontWeight: 'bold' }}>アカウント未登録</div>
               <div className="muted">
-                サインインしなくても全機能が使えます。ただしこの端末を失うと引き継げません。
-                メールアドレスを登録すると、機種変更しても記録を引き継げます。
+                登録しなくても全機能が使えます。ただ、いまの記録はこの端末だけのものなので、
+                機種変更すると引き継げません。メールアドレスを登録しておくと、
+                新しい端末でもログインして続きができます。
               </div>
             </div>
           </div>
 
           <div className="stack" style={{ marginTop: 'var(--sp-3)' }}>
+            <div className="row">
+              <Chip label="登録する" selected={mode === 'register'} testId="settings-mode-register"
+                    onClick={() => { setMode('register'); setError(null); }} />
+              <Chip label="ログイン" selected={mode === 'login'} testId="settings-mode-login"
+                    onClick={() => { setMode('login'); setError(null); }} />
+            </div>
             <ErrorText message={error} />
             <input className="set-input" style={{ textAlign: 'left' }} placeholder="example@email.com"
                    value={email} onChange={e => setEmail(e.target.value)} data-testid="settings-email" />
             <input className="set-input" style={{ textAlign: 'left' }} type="password" placeholder="パスワード（6文字以上）"
                    value={password} onChange={e => setPassword(e.target.value)} data-testid="settings-password" />
-            <Button label="このアカウントを登録する" onClick={attach} disabled={busy}
-                    testId="settings-attach-email" />
+            {mode === 'register' ? (
+              <Button label="このアカウントを登録する" onClick={attach} disabled={busy}
+                      testId="settings-attach-email" />
+            ) : (
+              <>
+                <div className="muted">別の端末で登録したアカウントでログインします。</div>
+                <label className="row" style={{ gap: 'var(--sp-2)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={merge} onChange={e => setMerge(e.target.checked)}
+                         data-testid="settings-login-merge" />
+                  <span>この端末の記録もアカウントに統合する</span>
+                </label>
+                <Button label="ログイン" onClick={login} disabled={busy}
+                        testId="settings-login" />
+              </>
+            )}
           </div>
         </Card>
       ) : (
@@ -107,9 +148,12 @@ export const Settings = () => {
       <h2 className="section-title">保存されているデータ</h2>
       <Card testId="settings-counts">
         <Row label="ルーティン" value={String(data.counts.routines)} testId="count-routines" />
-        <Row label="種目" value={String(data.counts.exercises)} testId="count-exercises" />
+        <Row label="種目マスタ" value={String(data.counts.exercises)} testId="count-exercises" />
         <Row label="ワークアウト記録" value={String(data.counts.routineLogs)} testId="count-logs" />
         <Row label="セット記録" value={String(data.counts.exerciseLogs)} testId="count-sets" />
+        <div className="muted" style={{ marginTop: 'var(--sp-2)' }}>
+          「種目マスタ」はアプリに用意されている全種目の数です（自分の種目の数ではありません）。
+        </div>
       </Card>
 
       <h2 className="section-title">危険な操作</h2>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addDays, formatDuration, formatWeight, getDateString } from '@nikkake/domain';
 import { api } from '../lib';
 import { Card, Chip, EmptyState, Loading } from '../components/ui';
@@ -14,11 +14,14 @@ export const Progress = () => {
   const [exerciseId, setExerciseId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['progress', today, range],
     queryFn: () => api.progress(today, range),
     // ホームで記録した直後に開いても完了前の集計を見せないよう、開くたびに取り直す
     refetchOnMount: 'always',
+    // 7日/30日を切り替えたとき、取得が終わるまで前の表示を残す。
+    // data が undefined になって画面全体が「読み込み中…」に化けるのを防ぐ
+    placeholderData: keepPreviousData,
   });
 
   const activeId = exerciseId ?? data?.exercisesWithLogs[0]?.id ?? null;
@@ -56,6 +59,7 @@ export const Progress = () => {
       <div className="row" style={{ justifyContent: 'space-between', marginTop: 'var(--sp-4)' }}>
         <h2 className="section-title" style={{ margin: 0 }}>実施状況</h2>
         <div className="row">
+          {isFetching && <span className="muted" data-testid="progress-updating">更新中…</span>}
           {[7, 30].map(v => (
             <Chip key={v} label={`${v}日`} selected={range === v} onClick={() => setRange(v)}
                   testId={`progress-range-${v}`} />
@@ -64,11 +68,17 @@ export const Progress = () => {
       </div>
 
       <Card testId="progress-chart">
+        <div className="muted" style={{ marginBottom: 'var(--sp-2)' }}>
+          1日に完了したワークアウトの回数（単位：回）
+        </div>
         <div className="bar-chart">
           {data.dailyStats.map(d => (
             <div key={d.date} className="bar-chart__col">
+              {d.completedCount > 0 && (
+                <div className="bar-chart__value">{d.completedCount}</div>
+              )}
               <div className={`bar-chart__bar${d.completedCount > 0 ? ' bar-chart__bar--on' : ''}`}
-                   style={{ height: Math.max(4, (d.completedCount / maxCount) * 96) }} />
+                   style={{ height: Math.max(4, (d.completedCount / maxCount) * 84) }} />
               {range === 7 && <div className="bar-chart__label">{d.date.slice(8)}</div>}
             </div>
           ))}

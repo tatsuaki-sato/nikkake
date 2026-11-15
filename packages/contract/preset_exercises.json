@@ -15,7 +15,7 @@
       "name": "ダンベルフライ",
       "category": "strength",
       "description": "ダンベルを使った胸のストレッチ種目",
-      "icon": "🦅",
+      "icon": "🪽",
       "bodyweight": false,
       "timeBased": false
     },
@@ -60,7 +60,7 @@
       "name": "懸垂",
       "category": "strength",
       "description": "自重で行う背中のトレーニング",
-      "icon": "🔝",
+      "icon": "🧗",
       "bodyweight": true,
       "timeBased": false
     },
