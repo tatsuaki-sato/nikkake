@@ -36,9 +36,12 @@ void main() {
       expect(result.lastCompletedDate, '2026-08-04');
     });
 
-    test('全種目やりきれなかった日(partial)もストリークは途切れない', () {
+    test('全種目やりきれなかった日(partial)はストリークに数えない', () {
+      // 2026-11-14 仕様変更: partial は実施記録には残るが完了日には数えない
       final logs = [buildLog('2026-08-04'), buildLog('2026-08-05', status: LogStatus.partial)];
-      expect(calculateStreak(logs, today).current, 2);
+      final result = calculateStreak(logs, today);
+      expect(result.current, 1);
+      expect(result.lastCompletedDate, '2026-08-04');
     });
 
     test('過去の最長ストリークを保持する', () {

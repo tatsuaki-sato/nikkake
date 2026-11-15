@@ -3,19 +3,22 @@ import 'date_utils.dart';
 
 /// 進捗画面の集計。すべて純粋関数。
 
-/// その日「やった」と数える基準。
-///
-/// 全セット完了(completed)だけを対象にすると、4種目のうち3種目やった日が
-/// ノーカウントになりストリークが切れる。習慣化アプリとしてそれは逆効果なので、
+/// その日「やった（実施した）」と数える基準。
+/// 通算回数・カレンダー・実施状況など「活動量」の集計に使う。
 /// 中断(skipped)以外はすべて実施した日として扱う。
 bool didWorkout(RoutineLog log) => log.status != LogStatus.skipped;
 
-/// 連続日数。
+/// その日「完了した」と数える基準。ストリークと「今日は完了」判定に使う。
+/// 2026-11-14 の仕様変更で、partial は完了日に数えない
+/// （サーバ側 Domain::Stats.completed_day? と同じ基準）。
+bool completedDay(RoutineLog log) => log.status == LogStatus.completed;
+
+/// 連続日数。数えるのは全セット完了(completed)の日だけ。
 /// 「今日まだやっていない」だけで途切れた表示になるのは体験が悪いので、
-/// 最終実施日が今日か昨日ならストリークは生きているものとして数える。
+/// 最終完了日が今日か昨日ならストリークは生きているものとして数える。
 StreakInfo calculateStreak(List<RoutineLog> logs, [DateTime? now]) {
   final today = now ?? DateTime.now();
-  final dates = logs.where(didWorkout).map((l) => l.logDate).toSet().toList()..sort();
+  final dates = logs.where(completedDay).map((l) => l.logDate).toSet().toList()..sort();
 
   if (dates.isEmpty) {
     return const StreakInfo(current: 0, longest: 0);

@@ -17,22 +17,31 @@ module Domain
 
     module_function
 
-    # その日「やった」と数える基準。
-    #
-    # 全セット完了(completed)だけを対象にすると、4種目のうち3種目やった日が
-    # ノーカウントになりストリークが切れる。習慣化アプリとしてそれは逆効果なので、
+    # その日「やった（実施した）」と数える基準。
+    # 通算回数・カレンダー・実施状況など「活動量」の集計に使う。
     # 中断(skipped)以外はすべて実施した日として扱う。
     def did_workout?(log)
       log.status != "skipped"
     end
 
-    # 連続日数。
+    # その日「完了した」と数える基準。
+    # ストリークとホームの「今日は完了」判定に使う。
+    #
+    # 2026-11-14 の仕様変更: 以前は partial でも完了扱いにしてストリークが
+    # 切れない設計だったが、「1セットだけでも今日の分が完了になりストリークが
+    # 伸びるのは実態と違う」というユーザーレビューを受けて変更した。
+    # partial は実施記録（通算・カレンダーには残る）が、完了日には数えない。
+    def completed_day?(log)
+      log.status == "completed"
+    end
+
+    # 連続日数。数えるのは全セット完了(completed)の日だけ（completed_day?）。
     #
     # 「今日まだやっていない」だけで途切れた表示になるのは体験が悪いので、
-    # 最終実施日が今日か昨日ならストリークは生きているものとして数える。
+    # 最終完了日が今日か昨日ならストリークは生きているものとして数える。
     # この猶予が結果的に ±1日のタイムゾーンのズレも吸収している（意図的に維持する）。
     def calculate_streak(logs:, today:)
-      dates = logs.select { did_workout?(_1) }.map { DateUtil.parse_date(_1.log_date) }.uniq.sort
+      dates = logs.select { completed_day?(_1) }.map { DateUtil.parse_date(_1.log_date) }.uniq.sort
       return Streak.new(current: 0, longest: 0, last_completed_date: nil) if dates.empty?
 
       longest = 1

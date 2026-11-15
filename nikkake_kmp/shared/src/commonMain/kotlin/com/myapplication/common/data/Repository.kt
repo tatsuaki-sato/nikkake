@@ -312,14 +312,14 @@ class Repository(val db: LocalDb) : NikkakeRepository {
 
         return listRoutinesWithExercisesLocal().filter { it.routine.isActive }.map { routine ->
             val routineLogs = logs.filter { it.routineId == routine.id }.sortedByDescending { it.logDate }
-            val todayLog = routineLogs.firstOrNull { it.logDate == date }
             val lastLog = routineLogs.firstOrNull { it.status != LogStatus.SKIPPED }
 
             TodayRoutine(
                 routine = routine,
-                // 全セット完了でなくても、記録を残した時点で今日の分は済んだものとして扱う。
-                // ストリークの判定(Stats.didWorkout)と基準を揃えている。
-                isCompleted = todayLog != null && todayLog.status != LogStatus.SKIPPED,
+                // 「今日は完了」は全セット完了(completed)の記録がある時だけ。
+                // partial だけでは完了にしない（2026-11-14 仕様変更。
+                // ストリークの判定(Stats.completedDay)と基準を揃えている）。
+                isCompleted = routineLogs.any { it.logDate == date && it.status == LogStatus.COMPLETED },
                 isDueToday = isRoutineDueToday(routine.routine, lastLog, todayDate),
                 frequencyLabel = formatFrequency(routine.routine),
             )

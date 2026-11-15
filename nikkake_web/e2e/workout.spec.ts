@@ -2,6 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 
 /** localStorage を消して初回訪問の状態に戻す */
 const freshVisit = async (page: Page) => {
+  // 部分的な記録の保存では確認ダイアログが出る。テストでは常に承認する
+  page.on('dialog', dialog => void dialog.accept());
   await page.goto('/');
   await page.evaluate(() => {
     Object.keys(localStorage)
@@ -96,7 +98,7 @@ test.describe('ワークアウト', () => {
     await expect(page.getByTestId('rest-timer')).toBeVisible();
   });
 
-  test('記録すると、別画面へ飛ばずその場に結果が出て、ホームで完了扱いになる', async ({ page }) => {
+  test('記録すると、別画面へ飛ばずその場に結果が出る（partialでは完了扱いにならない）', async ({ page }) => {
     await page.getByTestId('set-weight-0-1').fill('42');
     await page.getByTestId('set-check-0-1').click();
     await page.getByTestId('workout-finish').click();
@@ -108,8 +110,35 @@ test.describe('ワークアウト', () => {
     await expect(page.getByTestId('workout-result-status')).toContainText('記録しました');
     await expect(page.getByTestId('workout-result-sets')).toContainText('1/11セット');
 
+    // partial は今日の完了にならず、連続記録も増えない（2026-11-14 仕様変更）
+    await expect(page.getByText('今日は完了しました')).toHaveCount(0);
+    await expect(page.getByTestId('streak-count')).toHaveText('0 日');
+  });
+
+  test('全セット完了すると今日は完了扱いになり、その日は再記録できない', async ({ page }) => {
+    // 全11セットにチェックを入れる
+    for (const [exercise, sets] of [[0, 3], [1, 3], [2, 3], [3, 2]] as const) {
+      for (let s = 1; s <= sets; s++) {
+        await page.getByTestId(`set-check-${exercise}-${s}`).click();
+      }
+    }
+    await page.getByTestId('workout-finish').click();
+
+    await expect(page.getByTestId('workout-result-status')).toContainText('コンプリート');
     await expect(page.getByText('今日は完了しました')).toBeVisible();
     await expect(page.getByTestId('streak-count')).toHaveText('1 日');
+
+    // 完了済みの今日分はロックされ、開始・完了・チェックが操作できない
+    await expect(page.getByTestId('workout-finish')).toBeDisabled();
+    await expect(page.getByTestId('workout-timer-toggle')).toBeDisabled();
+    await expect(page.getByTestId('set-check-0-1')).toBeDisabled();
+    await expect(page.getByTestId('workout-locked-note')).toBeVisible();
+  });
+
+  test('0セットでは完了ボタンを押せない', async ({ page }) => {
+    await expect(page.getByTestId('workout-finish')).toBeDisabled();
+    await page.getByTestId('set-check-0-1').click();
+    await expect(page.getByTestId('workout-finish')).toBeEnabled();
   });
 
   test('日付を過去に変えて記録すると、今日の分はまだ未完了のまま残る', async ({ page }) => {
@@ -126,8 +155,8 @@ test.describe('ワークアウト', () => {
     await expect(page.getByTestId('workout-result')).toBeVisible();
     // 昨日の分として記録したので、今日はまだ完了扱いにならない
     await expect(page.getByText('今日は完了しました')).toHaveCount(0);
-    // 連続記録は「直近に記録した日」からの日数なので、昨日の分でも1日になる
-    await expect(page.getByTestId('streak-count')).toHaveText('1 日');
+    // 1セットだけの partial は完了日に数えないので、連続記録も増えない
+    await expect(page.getByTestId('streak-count')).toHaveText('0 日');
   });
 
   test('日付欄は未来の日付を選べない', async ({ page }) => {
@@ -156,8 +185,9 @@ test.describe('ワークアウト', () => {
     await page.getByTestId('workout-finish').click();
 
     await openTab(page, '進捗');
+    // partial でも実施記録としては通算に数える。連続記録は完了日だけが対象
     await expect(page.getByTestId('progress-total')).toHaveText('1回');
-    await expect(page.getByTestId('progress-streak')).toHaveText('1日');
+    await expect(page.getByTestId('progress-streak')).toHaveText('0日');
     await expect(page.getByTestId('progress-chart')).toBeVisible();
     await expect(page.getByTestId('progress-calendar')).toBeVisible();
 
@@ -168,6 +198,27 @@ test.describe('ワークアウト', () => {
     await expect(detail).toContainText('いつものルーティン');
     await expect(detail).toContainText('腕立て伏せ');
     await expect(detail).toContainText('40×10');
+  });
+
+  test('進捗の日別詳細から記録を1件だけ削除できる', async ({ page }) => {
+    const today = await page.getByTestId('workout-log-date').inputValue();
+    await page.getByTestId('set-check-0-1').click();
+    await page.getByTestId('workout-finish').click();
+    await expect(page.getByTestId('workout-result')).toBeVisible();
+
+    await openTab(page, '進捗');
+    await expect(page.getByTestId('progress-total')).toHaveText('1回');
+
+    await page.getByTestId(`calendar-day-${today}`).click();
+    await expect(page.getByTestId('progress-day-detail')).toBeVisible();
+    // 確認ダイアログは freshVisit のハンドラが承認する
+    await page.locator('[data-testid^="day-record-delete-"]').click();
+
+    // 削除されると集計が0に戻り、空状態になる
+    await expect(page.getByTestId('progress-empty')).toBeVisible();
+
+    await openTab(page, 'ホーム');
+    await expect(page.getByTestId('streak-count')).toHaveText('0 日');
   });
 
   test('カレンダーは前月へめくれる', async ({ page }) => {

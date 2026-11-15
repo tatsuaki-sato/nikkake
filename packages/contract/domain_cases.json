@@ -6,7 +6,7 @@
     "日付は 'YYYY-MM-DD'。2026-08-01=土, 2026-08-02=日, 2026-08-03=月。"
   ],
   "streak": {
-    "$comment": "calculateStreak(logs, today) -> { current, longest, lastCompletedDate }。skipped 以外を実施日として数え、最終実施日が今日か昨日なら継続。",
+    "$comment": "calculateStreak(logs, today) -> { current, longest, lastCompletedDate }。全セット完了(completed)の日だけを完了日として数え、最終完了日が今日か昨日なら継続。partial / skipped は完了日に数えない（2026-11-14 仕様変更。partial は実施記録としては残るが、完了・ストリークには数えない）。",
     "cases": [
       {
         "name": "記録が無ければ0",
@@ -122,7 +122,7 @@
         }
       },
       {
-        "name": "全種目やりきれなかった日(partial)もストリークは途切れない",
+        "name": "全種目やりきれなかった日(partial)はストリークに数えない",
         "today": "2026-08-05",
         "logs": [
           {
@@ -135,9 +135,24 @@
           }
         ],
         "expect": {
-          "current": 2,
-          "longest": 2,
-          "lastCompletedDate": "2026-08-05"
+          "current": 1,
+          "longest": 1,
+          "lastCompletedDate": "2026-08-04"
+        }
+      },
+      {
+        "name": "partialだけの日はストリーク0",
+        "today": "2026-08-05",
+        "logs": [
+          {
+            "log_date": "2026-08-05",
+            "status": "partial"
+          }
+        ],
+        "expect": {
+          "current": 0,
+          "longest": 0,
+          "lastCompletedDate": null
         }
       },
       {

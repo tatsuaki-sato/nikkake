@@ -3,13 +3,33 @@ import { openApp, openTab } from './helpers';
 
 const homeScreen = (page: Page) => page.getByTestId('home-screen');
 
-/** ワークアウトを1回やりきって記録を作る */
+/** 1セットだけ実施して記録を作る（部分記録。集計・カレンダーには出る） */
 const recordOneWorkout = async (page: Page, weight = '50') => {
   await homeScreen(page).getByText('いつものルーティン').click();
   await expect(page.getByTestId('workout-screen')).toBeVisible();
 
   await page.getByTestId('set-weight-0-1').fill(weight);
   await page.getByTestId('set-check-0-1').click();
+
+  await page.getByTestId('workout-finish').click();
+  await expect(page.getByTestId('summary-screen')).toBeVisible();
+  await page.getByTestId('summary-home').click();
+  await expect(homeScreen(page)).toBeVisible();
+};
+
+/** ワークアウトを全セットやりきって記録を作る（完了日になり、ストリークが付く） */
+const recordFullWorkout = async (page: Page) => {
+  await homeScreen(page).getByText('いつものルーティン').click();
+  await expect(page.getByTestId('workout-screen')).toBeVisible();
+
+  for (let i = 0; i < 4; i++) {
+    await page.getByTestId(`workout-tab-${i}`).click();
+    const checks = page.locator('[data-testid^="set-check-"]');
+    const count = await checks.count();
+    for (let j = 0; j < count; j++) {
+      await checks.nth(j).click();
+    }
+  }
 
   await page.getByTestId('workout-finish').click();
   await expect(page.getByTestId('summary-screen')).toBeVisible();
@@ -30,7 +50,9 @@ test.describe('進捗', () => {
   });
 
   test('1回記録すると集計・グラフ・カレンダーが出る', async ({ page }) => {
-    await recordOneWorkout(page);
+    // ストリークまで検証するので全セット完了させる
+    // （2026-11-14 仕様変更: 部分記録ではストリークは付かない）
+    await recordFullWorkout(page);
     await openTab(page, '進捗');
 
     await expect(page.getByTestId('progress-total')).toHaveText('1回');

@@ -159,6 +159,12 @@ export const DELETE_ROUTINE = `
   }
 `;
 
+export const DELETE_ROUTINE_LOG = `
+  mutation DeleteRoutineLog($id: ID!) {
+    deleteRoutineLog(id: $id) { success userErrors { message code } }
+  }
+`;
+
 export const SET_ROUTINE_ACTIVE = `
   mutation SetRoutineActive($id: ID!, $isActive: Boolean!) {
     setRoutineActive(id: $id, isActive: $isActive) {

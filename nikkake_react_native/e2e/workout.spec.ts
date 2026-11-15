@@ -127,7 +127,12 @@ test.describe('ワークアウト実行', () => {
 
   test('完了後にホームへ戻ると完了扱いになり、ストリークが増える', async ({ page }) => {
     await startWorkout(page);
-    await completeCurrentExercise(page);
+    // 2026-11-14 仕様変更: 完了扱い・ストリークは全セット完了のときだけ。
+    // 1種目だけでは部分記録になるため、全種目を完了させる。
+    for (let i = 0; i < 4; i++) {
+      await page.getByTestId(`workout-tab-${i}`).click();
+      await completeCurrentExercise(page);
+    }
     await page.getByTestId('workout-finish').click();
 
     await expect(page.getByTestId('summary-screen')).toBeVisible();
@@ -167,7 +172,11 @@ test.describe('ワークアウト実行', () => {
 
   test('リロードしても記録は消えない', async ({ page }) => {
     await startWorkout(page);
-    await completeCurrentExercise(page);
+    // ストリークまで検証するので全種目を完了させる（部分記録では付かない）
+    for (let i = 0; i < 4; i++) {
+      await page.getByTestId(`workout-tab-${i}`).click();
+      await completeCurrentExercise(page);
+    }
     await page.getByTestId('workout-finish').click();
     await page.getByTestId('summary-home').click();
 

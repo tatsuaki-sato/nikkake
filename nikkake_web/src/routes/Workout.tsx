@@ -21,8 +21,12 @@ interface SetState {
  *
  * 全種目のチェック欄を一度に表示する（スクロールだけで全種目に届く）。
  */
-export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
+export const Workout = ({ routineId, completedToday, result, onFinished, onDismissResult }: {
   routineId: string;
+  // 今日このルーティンを全セット完了済みか（Homeの「完了」セクション判定）。
+  // 完了済みの日は二重記録を防ぐため、今日分はもう開始・完了できない。
+  // 部分的な記録(partial)の日は false のままなので、続きを実施できる。
+  completedToday: boolean;
   // 完了直後の結果。ルーティンが「今日やる」→「完了」へ移ると、このコンポーネントは
   // 一度アンマウント・再マウントされるため、コンポーネント内には持たずHomeから受け取る
   result: WorkoutSummary | 'offline' | null;
@@ -50,6 +54,8 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
   // 過去の日付の実績も登録できるように。既定は今日（日付はサーバではなく端末が決める）
   const today = getDateString();
   const [logDate, setLogDate] = useState(today);
+  // 今日分が完了済みなら今日はロックする。過去日付を選べばその日の追加記録はできる
+  const locked = completedToday && logDate === today;
   const startedAt = useRef(new Date().toISOString());
   const initialised = useRef(false);
 
@@ -110,6 +116,7 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
     ));
 
   const toggle = (exerciseIndex: number, setNumber: number) => {
+    if (locked) return;
     const target = sets[exerciseIndex]?.find(s => s.setNumber === setNumber);
     if (!target) return;
 
@@ -120,7 +127,27 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
   };
 
   const finish = async () => {
+    // 0セットでは記録しない（ボタンも無効化しているが、経路としても塞ぐ）
+    if (locked || totals.done === 0) return;
+
+    // 全セット終わっていない場合は「部分的な記録」になることを確認する。
+    // partial は今日の完了にならず、連続記録も増えない（サーバ側の仕様）。
+    if (totals.done < totals.total) {
+      const ok = window.confirm(
+        `まだ完了していないセットがあります（${totals.done}/${totals.total}セット）。\n`
+        + 'このまま部分的な記録として保存しますか？\n'
+        + '※ 今日の「完了」にはならず、連続記録は増えません。続きは今日のうちに実施できます。',
+      );
+      if (!ok) return;
+    }
+
+    // 完了を押した時点で計測を止める。保存の通信を待ってから止めると、
+    // その間もタイマーと休憩タイマーが進み続けてしまう。
+    const durationSec = elapsed;
+    setRunning(false);
+    setRest(0);
     setSaving(true);
+
     const payload: RecordedSetInput[] = sets.flatMap((group, i) =>
       group
         .filter(s => s.completed)
@@ -139,13 +166,12 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
       routineId,
       logDate,
       startedAt: startedAt.current,
-      durationSec: elapsed,
+      durationSec,
       totalSets: totals.total,
       sets: payload,
     });
 
     setSaving(false);
-    setRunning(false);
     onFinished(recorded.data?.summary ?? 'offline');
   };
 
@@ -156,13 +182,25 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
         <input type="date" className="set-input" style={{ width: 'auto' }} value={logDate} max={today}
                onChange={e => setLogDate(e.target.value)} data-testid="workout-log-date" />
         <div style={{ flex: 1 }} />
-        <button className="btn" style={{ width: 'auto' }} onClick={finish} disabled={saving} data-testid="workout-finish">
+        <button className="btn" style={{ width: 'auto' }} onClick={finish}
+                disabled={saving || locked || totals.done === 0} data-testid="workout-finish">
           完了
         </button>
       </div>
 
+      {locked && (
+        <div className="muted" style={{ marginBottom: 'var(--sp-3)' }} data-testid="workout-locked-note">
+          ✅ 今日は完了済みのため、この内容では記録できません。過去の日付を選ぶと、その日の記録を追加できます。
+        </div>
+      )}
+      {!locked && totals.done === 0 && (
+        <div className="muted" style={{ marginBottom: 'var(--sp-3)' }}>
+          セットにチェックを入れると「完了」を押せます。
+        </div>
+      )}
+
       <div className="row" style={{ marginBottom: 'var(--sp-3)' }}>
-        <button className="btn btn--ghost" style={{ width: 'auto' }}
+        <button className="btn btn--ghost" style={{ width: 'auto' }} disabled={locked}
                 onClick={() => setRunning(v => !v)} data-testid="workout-timer-toggle">
           {running ? '⏸ 一時停止' : '▶ 開始'}
         </button>
@@ -244,7 +282,7 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
                     <div style={{ textAlign: 'center' }} className="muted">{s.setNumber}</div>
                     {!hasNoWeight && (
                       <input
-                        className="set-input" inputMode="decimal" placeholder="自重"
+                        className="set-input" inputMode="decimal" placeholder="自重" disabled={locked}
                         value={s.weight ?? ''}
                         onChange={e => patch(i, s.setNumber, { weight: e.target.value === '' ? null : Number(e.target.value) })}
                         data-testid={`set-weight-${i}-${s.setNumber}`}
@@ -252,20 +290,20 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
                     )}
                     {isTimeBased ? (
                       <input
-                        className="set-input" inputMode="numeric"
+                        className="set-input" inputMode="numeric" disabled={locked}
                         value={s.durationSec ?? ''}
                         onChange={e => patch(i, s.setNumber, { durationSec: e.target.value === '' ? null : Number(e.target.value) })}
                         data-testid={`set-duration-${i}-${s.setNumber}`}
                       />
                     ) : (
                       <input
-                        className="set-input" inputMode="numeric"
+                        className="set-input" inputMode="numeric" disabled={locked}
                         value={s.reps ?? ''}
                         onChange={e => patch(i, s.setNumber, { reps: e.target.value === '' ? null : Number(e.target.value) })}
                         data-testid={`set-reps-${i}-${s.setNumber}`}
                       />
                     )}
-                    <button className="check" role="checkbox" aria-checked={s.completed}
+                    <button className="check" role="checkbox" aria-checked={s.completed} disabled={locked}
                             onClick={() => toggle(i, s.setNumber)} data-testid={`set-check-${i}-${s.setNumber}`}>
                       {s.completed ? '✓' : ''}
                     </button>
@@ -273,11 +311,11 @@ export const Workout = ({ routineId, result, onFinished, onDismissResult }: {
                 ))}
 
                 <div className="row" style={{ justifyContent: 'space-between', marginTop: 'var(--sp-3)' }}>
-                  <button className="btn btn--ghost" style={{ width: 'auto' }} data-testid={`remove-set-${i}`}
+                  <button className="btn btn--ghost" style={{ width: 'auto' }} data-testid={`remove-set-${i}`} disabled={locked}
                           onClick={() => setSets(prev => prev.map((g, gi) => (gi === i && g.length > 1 ? g.slice(0, -1) : g)))}>
                     − セットを減らす
                   </button>
-                  <button className="btn btn--ghost" style={{ width: 'auto' }} data-testid={`add-set-${i}`}
+                  <button className="btn btn--ghost" style={{ width: 'auto' }} data-testid={`add-set-${i}`} disabled={locked}
                           onClick={() => setSets(prev => prev.map((g, gi) => {
                             if (gi !== i) return g;
                             const last = g[g.length - 1];
